@@ -2,15 +2,18 @@
 
 AI-powered video production pipeline for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Analyze source footage, generate narration, match clips, and render finished videos — all from your terminal.
 
+![Scene Review Report](scene-review-report-screenshot.jpg)
+
 ## What it does
 
 vstack turns source video files into finished video essays, supercuts, and montages:
 
-1. **Analyze** — Gemini 2.5 Pro scans videos producing rich metadata: scenes, shots, camera types, character expressions, speaker-attributed dialogue, and searchable tags
-2. **Review** — Interactive HTML report with first/last frame thumbnails, millisecond timestamp correction, and live frame preview
-3. **Narrate** — Write scripts and generate natural TTS audio via ElevenLabs with per-sentence splitting
-4. **Assign** — AI matches narration segments to the best clips from analyzed footage
-5. **Render** — Preview in Remotion Studio or render final MP4
+1. **Analyze** — Gemini 2.5 Pro scans videos in a reliable two-pass approach: first extracting rich scene metadata (location, characters, mood, lighting, music, costumes, dialogue), then drilling into shot-level detail (camera type, subject, expressions, tags, supercut categories)
+2. **Review** — Interactive HTML Scene Review Report with first/last frame thumbnails, speaker-attributed dialogue, millisecond timestamp correction with live frame preview, and full scene metadata
+3. **Search** — SQLite database with FTS5 full-text search across all analyzed episodes. Find any moment by character, expression, dialogue, action, or tag
+4. **Narrate** — Write scripts and generate natural TTS audio via ElevenLabs with per-sentence splitting
+5. **Assign** — AI matches narration segments to the best clips using the search database
+6. **Render** — Preview in Remotion Studio or render final MP4
 
 ## Install
 
@@ -44,27 +47,36 @@ cp -Rf ~/.claude/skills/vstack .claude/skills/vstack
 | `/vstack-improve` | Read pipeline scripts and propose improvements |
 | `/vstack-project` | Project init, save, load, status |
 
+## Two-Pass Analysis
+
+The analysis uses a reliable two-pass approach that eliminates the flakiness of asking for everything at once:
+
+**Pass A (Scenes)** — Rich metadata per scene. Gemini always completes this reliably:
+- Location, characters, mood, plot significance
+- Lighting, music/score, costuming details
+- Speaker-attributed dialogue (matched from SRT subtitles)
+- Searchable tags and supercut potential categories
+
+**Pass B (Shots)** — Camera-level detail per scene. Simple focused prompt, high success rate:
+- Shot type (wide, medium, close-up, over-shoulder, etc.)
+- Subject, action, character expressions
+- Camera movement (static, pan, tilt, track, zoom)
+- Tags and supercut potential per shot
+- Sub-second timestamps snapped to ffmpeg scene detection cut points
+
 ## Cost Estimates
 
 ### Video Analysis (Gemini 2.5 Pro via Vertex AI)
 
-Uses `MEDIA_RESOLUTION_LOW` to minimize cost while maintaining metadata quality.
+Uses `MEDIA_RESOLUTION_LOW` and context caching to minimize cost.
 
-| Scope | Episodes | Runtime | Estimated Cost |
-|-------|----------|---------|---------------|
-| Single episode | 1 | ~45 min | **~$3.40** |
-| Season (22 eps) | 22 | ~16 hrs | **~$75** |
-| Full series (176 eps) | 176 | ~132 hrs | **~$600** |
+| Scope | Episodes | Runtime | Without Cache | With Cache |
+|-------|----------|---------|---------------|------------|
+| Single episode | 1 | ~45 min | ~$3.40 | ~$2.10 |
+| Season (22 eps) | 22 | ~16 hrs | ~$75 | ~$46 |
+| Full series (176 eps) | 176 | ~132 hrs | ~$600 | ~$370 |
 
-**Per episode (~45 min, 3 chunks):**
-
-| Component | Tokens | Rate | Cost |
-|-----------|--------|------|------|
-| Video input (LOW) | ~750K | $2.00/M | $1.50 |
-| SRT + prompt | ~3K | $2.00/M | $0.01 |
-| Output (metadata) | ~30K | $10.00/M | $0.30 |
-| Thinking | ~50K | $2.00/M | $0.10 |
-| **Total** | | | **~$1.91** |
+**Context caching** stores video tokens once per episode and reuses them across all chunk and shot requests at a 90% discount. Automatically created, reused on resume, and cleaned up after completion.
 
 ### Audio (ElevenLabs)
 
@@ -77,6 +89,40 @@ Uses `MEDIA_RESOLUTION_LOW` to minimize cost while maintaining metadata quality.
 
 Local via Remotion — no API costs.
 
+## SQLite Database
+
+All analyzed metadata is stored in a SQLite database (`vstack.db`) with FTS5 full-text search. The database auto-rebuilds after each episode analysis using hash-based change detection.
+
+```bash
+node db.mjs --rebuild              # Rebuild from all scenes.json files
+node db.mjs --rebuild S02E01       # Rebuild single episode
+node db.mjs --search "picard smile"          # Search shots
+node db.mjs --search-dialogue "make it so"   # Search dialogue
+node db.mjs --verify               # Check DB vs JSON integrity
+node db.mjs --stats                # Show database stats
+```
+
+### Schema
+
+- **episodes** — ID, title, filename, duration, analysis cost
+- **scenes** — Location, characters, mood, lighting, music, costumes, tags
+- **shots** — Shot type, subject, action, expressions, camera, tags, supercut potential
+- **dialogue** — Speaker, text, timestamps (linked to both scenes and shots)
+- **shots_fts** — Full-text search index on shots (subject, action, tags, expressions)
+- **dialogue_fts** — Full-text search index on dialogue (speaker, text)
+
+### Data Flow
+
+```
+Gemini API --> chunk files --> scenes.json (report source)
+                                   |
+                              auto-rebuild
+                                   |
+                              vstack.db (AI search source)
+```
+
+The report reads from `scenes.json`. The AI clip selector searches `vstack.db`. Both stay in sync automatically.
+
 ## Configuration
 
 Create `vstack.config.json` in your project root:
@@ -88,7 +134,7 @@ Create `vstack.config.json` in your project root:
   "mediaDir": "/path/to/source/videos",
   "gcsBucket": "gs://your-bucket-name",
   "gcpProject": "your-gcp-project-id",
-  "gcpRegion": "us-central1",
+  "gcpRegion": "us-east1",
   "elevenLabsVoiceId": "your-voice-id",
   "model": "gemini-2.5-pro",
   "mediaResolution": "MEDIA_RESOLUTION_LOW",
@@ -100,35 +146,43 @@ Create `vstack.config.json` in your project root:
 ## Architecture
 
 ```
-Source Video (.mp4)
+Source Video (.mp4) + SRT Subtitles
     |
-    +-- Gemini 2.5 Pro --> Scene + Shot metadata (JSON)
-    |     \-- SRT subtitles --> Speaker-attributed dialogue
+    +-- Gemini 2.5 Pro (two-pass) --> Scene + Shot metadata (JSON)
+    |     +-- Pass A: Scenes (metadata, dialogue, tags)
+    |     +-- Pass B: Shots per scene (camera, expressions, tags)
     |
-    +-- ffmpeg scene detection --> Exact cut timestamps
+    +-- ffmpeg scene detection --> Exact cut timestamps (snap to +-200ms)
     |
-    +-- Frame extraction --> Thumbnails for review
+    +-- Frame extraction --> First/last thumbnails per shot
     |
-    \-- Scene Review Report (HTML)
-            |
-            +-- Narration Script --> ElevenLabs TTS --> Per-sentence audio
-            |
-            +-- Clip Assignment --> scenes.ts (Remotion config)
-            |
-            \-- Remotion Render --> Final MP4
+    +-- SQLite database --> FTS5 searchable index
+    |
+    +-- Scene Review Report (interactive HTML)
+    |       +-- Timestamp correction with live frame preview
+    |       +-- Lock, export, and apply corrections
+    |
+    +-- Narration Script --> ElevenLabs TTS --> Per-sentence audio
+    |
+    +-- AI Clip Assignment --> scenes.ts (Remotion config)
+    |
+    +-- Remotion Render --> Final MP4
 ```
 
 ## Resilience
 
 Built to handle real-world API issues:
 
+- **Two-pass analysis** — Scenes and shots analyzed separately for reliability (eliminates ~80% failure rate of single-pass)
 - **Exponential backoff** — Rate limits trigger 30s/60s/120s/240s/480s retries (5 attempts)
+- **Auto region failover** — Rotates through us-east1, us-central1, europe-west1, asia-northeast1 after 3 consecutive rate limits
+- **Context cache auto-recreation** — If cache expires mid-run, automatically creates a new one and continues
 - **JSON repair** — Auto-fixes Gemini formatting bugs (markdown fences, trailing commas, malformed objects)
 - **Shot validation** — Never accepts scenes without shot data; forces retry
 - **Truncation detection** — Catches `MAX_TOKENS` responses and retries
 - **Stale frame clearing** — Clears frame directory before extraction to prevent numbering mismatches
 - **Resume capability** — Batch processor saves state; `--resume` picks up where it left off
-- **Chunk caching** — Successful chunks are cached and reused
+- **Chunk caching** — Successful chunks are cached and reused across runs
 
 ## Batch Processing
 
@@ -142,21 +196,34 @@ node batch-analyze.mjs --status                 # Progress check
 
 ## Scene Review Report
 
-Interactive HTML editing interface:
+Interactive HTML editing interface with full metadata at both scene and shot level:
 
-- Scene/shot hierarchy with full metadata
-- First/last frame thumbnails per shot
-- Millisecond timestamp adjustment (+-10ms, +-50ms, +-100ms)
-- Live frame preview via local frame server
-- Lock, export, and apply corrections
-- Settings dropdown showing all analysis parameters
+**Scene level:**
+- Location, characters, mood, plot significance
+- Lighting, music/score, costuming details
+- Tags and supercut potential categories
+
+**Shot level:**
+- First/last frame thumbnails
+- Shot type, subject, action, character expressions
+- Camera movement
+- Speaker-attributed dialogue with timestamps
+- Tags and supercut potential (in future analyses)
+- Millisecond timestamp adjustment (+-10ms, +-50ms, +-100ms) with live frame preview
+- Lock corrections and export for batch application
+
+**Frame server** for live timestamp preview:
+```bash
+node lib/frame-server.mjs
+# Serves frames at http://localhost:3333/frame?file=PATH&t=SECONDS
+```
 
 ## Subagents
 
 | Agent | Role |
 |-------|------|
 | `script-writer` | Narration scripts optimized for voiceover |
-| `clip-matcher` | Finds best clips from metadata |
+| `clip-matcher` | Finds best clips from metadata via DB search |
 | `scene-reviewer` | Analyzes assignments, suggests improvements |
 | `audio-engineer` | TTS generation, splitting, alignment |
 | `pipeline-improver` | Reads scripts, proposes code changes |
