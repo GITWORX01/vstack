@@ -113,27 +113,71 @@ VSTACK_HOME="$HOME/.vstack"
 mkdir -p "$VSTACK_HOME/projects"
 echo "📂 State directory: $VSTACK_HOME"
 
+# ── Environment file ─────────────────────────────────────────────────
+
+ENV_FILE="$VSTACK_DIR/.env"
+if [ ! -f "$ENV_FILE" ]; then
+  cp "$VSTACK_DIR/.env.template" "$ENV_FILE"
+  echo "📝 Created .env from template — edit it to add your API keys:"
+  echo "   $ENV_FILE"
+  echo ""
+
+  # Prompt for ElevenLabs key (required for audio)
+  read -p "  ElevenLabs API key (or press Enter to skip): " ELEVEN_KEY
+  if [ -n "$ELEVEN_KEY" ]; then
+    sed -i "s/^ELEVENLABS_API_KEY=$/ELEVENLABS_API_KEY=$ELEVEN_KEY/" "$ENV_FILE"
+    echo "  ✅ Saved to .env"
+  fi
+
+  # Prompt for media directory
+  read -p "  Media directory path (e.g. C:\\Star Trek): " MEDIA_PATH
+  if [ -n "$MEDIA_PATH" ]; then
+    sed -i "s|^MEDIA_DIR=$|MEDIA_DIR=$MEDIA_PATH|" "$ENV_FILE"
+    echo "  ✅ Saved to .env"
+  fi
+
+  echo ""
+else
+  echo "📝 Using existing .env"
+fi
+
+# Source .env to check keys
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  source "$ENV_FILE" 2>/dev/null || true
+  set +a
+fi
+
 # ── Check API keys ───────────────────────────────────────────────────
 
 echo ""
 echo "Checking API keys..."
 
-if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  echo "  ✅ ANTHROPIC_API_KEY set"
-else
-  echo "  ⚠️  ANTHROPIC_API_KEY not set (needed for /narrate, /assign)"
-fi
-
 if [ -n "${ELEVENLABS_API_KEY:-}" ]; then
   echo "  ✅ ELEVENLABS_API_KEY set"
 else
   echo "  ⚠️  ELEVENLABS_API_KEY not set (needed for /narrate TTS)"
+  echo "     Add to $ENV_FILE"
 fi
 
-if [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] || command -v gcloud &>/dev/null; then
-  echo "  ✅ Google Cloud credentials available"
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "  ✅ ANTHROPIC_API_KEY set"
 else
-  echo "  ⚠️  No Google Cloud credentials (needed for /analyze)"
+  echo "  ℹ️  ANTHROPIC_API_KEY not set (optional — only for pattern scanner)"
+fi
+
+if command -v gcloud &>/dev/null; then
+  GCLOUD_ACCOUNT=$(gcloud config get-value account 2>/dev/null || echo "not set")
+  echo "  ✅ Google Cloud ($GCLOUD_ACCOUNT)"
+else
+  echo "  ⚠️  gcloud CLI not found (needed for /analyze)"
+  echo "     Install from https://cloud.google.com/sdk/docs/install"
+fi
+
+if [ -n "${MEDIA_DIR:-}" ]; then
+  echo "  ✅ MEDIA_DIR=$MEDIA_DIR"
+else
+  echo "  ⚠️  MEDIA_DIR not set — add to $ENV_FILE"
 fi
 
 # ── Done ──────────────────────────────────────────────────────────────
