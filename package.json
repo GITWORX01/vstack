@@ -1,0 +1,15 @@
+{
+  "name": "vstack",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AI-powered video production pipeline for Claude Code. Analyze, narrate, assemble, and render videos from source footage.",
+  "license": "MIT",
+  "scripts": {
+    "setup": "node setup",
+    "frame-server": "node lib/frame-server.mjs"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

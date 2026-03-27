@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+#
+# vstack setup — installs vstack skills into Claude Code
+#
+# Usage:
+#   ./setup              # Install globally to ~/.claude/skills/vstack
+#   ./setup --local      # Install to .claude/skills/vstack in current project
+#
+set -euo pipefail
+
+VSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
+VERSION=$(cat "$VSTACK_DIR/VERSION" 2>/dev/null || echo "0.1.0")
+LOCAL_INSTALL=false
+
+# Parse args
+for arg in "$@"; do
+  case $arg in
+    --local) LOCAL_INSTALL=true ;;
+    --help|-h)
+      echo "vstack setup v$VERSION"
+      echo ""
+      echo "Usage: ./setup [--local]"
+      echo ""
+      echo "  --local    Install to .claude/skills/ in current project"
+      echo "             (default: install globally to ~/.claude/skills/)"
+      exit 0
+      ;;
+  esac
+done
+
+echo "═══════════════════════════════════════════"
+echo "  vstack v$VERSION — Video Production Pipeline"
+echo "═══════════════════════════════════════════"
+echo ""
+
+# ── Check prerequisites ──────────────────────────────────────────────
+
+echo "Checking prerequisites..."
+
+# Node.js
+if ! command -v node &>/dev/null; then
+  echo "❌ Node.js not found. Install from https://nodejs.org"
+  exit 1
+fi
+NODE_VERSION=$(node -v)
+echo "  ✅ Node.js $NODE_VERSION"
+
+# ffmpeg
+if command -v ffmpeg &>/dev/null; then
+  FFMPEG_VERSION=$(ffmpeg -version 2>&1 | head -1 | awk '{print $3}')
+  echo "  ✅ ffmpeg $FFMPEG_VERSION"
+else
+  echo "  ⚠️  ffmpeg not found on PATH"
+  echo "     Download from https://ffmpeg.org or set ffmpegPath in vstack.config.json"
+fi
+
+# gcloud (optional — needed for /analyze)
+if command -v gcloud &>/dev/null; then
+  GCLOUD_ACCOUNT=$(gcloud config get-value account 2>/dev/null || echo "not set")
+  echo "  ✅ gcloud ($GCLOUD_ACCOUNT)"
+else
+  echo "  ⚠️  gcloud CLI not found (needed for /analyze)"
+  echo "     Install from https://cloud.google.com/sdk/docs/install"
+fi
+
+# Python + Whisper (optional — needed for word alignment)
+if command -v python &>/dev/null || command -v python3 &>/dev/null; then
+  PY=$(command -v python3 || command -v python)
+  PY_VERSION=$($PY --version 2>&1)
+  echo "  ✅ $PY_VERSION"
+else
+  echo "  ⚠️  Python not found (needed for Whisper word alignment)"
+fi
+
+echo ""
+
+# ── Determine install target ─────────────────────────────────────────
+
+if [ "$LOCAL_INSTALL" = true ]; then
+  SKILLS_DIR=".claude/skills"
+  echo "📦 Installing locally to $SKILLS_DIR/vstack"
+else
+  SKILLS_DIR="$HOME/.claude/skills"
+  echo "📦 Installing globally to $SKILLS_DIR/vstack"
+fi
+
+mkdir -p "$SKILLS_DIR"
+
+# ── Create symlinks for each skill ────────────────────────────────────
+
+SKILLS=(analyze review narrate assign render supercut improve project)
+
+for skill in "${SKILLS[@]}"; do
+  TARGET="$SKILLS_DIR/vstack-$skill"
+
+  # Remove existing symlink or directory
+  if [ -L "$TARGET" ]; then
+    rm "$TARGET"
+  elif [ -d "$TARGET" ]; then
+    rm -rf "$TARGET"
+  fi
+
+  # Create symlink
+  ln -sf "$VSTACK_DIR/$skill" "$TARGET"
+  echo "  ✅ /vstack-$skill → $VSTACK_DIR/$skill"
+done
+
+echo ""
+
+# ── Create global state directory ─────────────────────────────────────
+
+VSTACK_HOME="$HOME/.vstack"
+mkdir -p "$VSTACK_HOME/projects"
+echo "📂 State directory: $VSTACK_HOME"
+
+# ── Check API keys ───────────────────────────────────────────────────
+
+echo ""
+echo "Checking API keys..."
+
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "  ✅ ANTHROPIC_API_KEY set"
+else
+  echo "  ⚠️  ANTHROPIC_API_KEY not set (needed for /narrate, /assign)"
+fi
+
+if [ -n "${ELEVENLABS_API_KEY:-}" ]; then
+  echo "  ✅ ELEVENLABS_API_KEY set"
+else
+  echo "  ⚠️  ELEVENLABS_API_KEY not set (needed for /narrate TTS)"
+fi
+
+if [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] || command -v gcloud &>/dev/null; then
+  echo "  ✅ Google Cloud credentials available"
+else
+  echo "  ⚠️  No Google Cloud credentials (needed for /analyze)"
+fi
+
+# ── Done ──────────────────────────────────────────────────────────────
+
+echo ""
+echo "═══════════════════════════════════════════"
+echo "  ✅ vstack v$VERSION installed!"
+echo ""
+echo "  Available commands:"
+for skill in "${SKILLS[@]}"; do
+  echo "    /vstack-$skill"
+done
+echo ""
+echo "  Quick start:"
+echo "    /vstack-project init"
+echo "    /vstack-analyze path/to/video.mp4"
+echo "    /vstack-review"
+echo "═══════════════════════════════════════════"
