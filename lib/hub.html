@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>vstack — Video Production Pipeline</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a1a;
+  --card: #1a1a2e;
+  --card-hover: #222240;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --text-muted: #555;
+  --accent: #4fc3f7;
+  --accent-dim: #2a7a9e;
+  --green: #66bb6a;
+  --yellow: #fdd835;
+  --red: #ef5350;
+  --border: #2a2a4a;
+  --radius: 10px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+
+html { font-size: 15px; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ─── Header ─── */
+#app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: linear-gradient(180deg, #0d0d22 0%, rgba(10,10,26,0.95) 100%);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.logo {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+}
+.logo span { color: var(--text-dim); font-weight: 400; font-size: 0.75rem; margin-left: 6px; letter-spacing: 0; }
+
+.search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 520px;
+}
+.search-wrap input {
+  width: 100%;
+  padding: 8px 14px 8px 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-wrap input:focus { border-color: var(--accent); }
+.search-wrap input::placeholder { color: var(--text-muted); }
+.search-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+/* Search results dropdown */
+.search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  max-height: 420px;
+  overflow-y: auto;
+  display: none;
+}
+.search-results.visible { display: block; }
+.search-results .sr-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.search-results .sr-item:last-child { border-bottom: none; }
+.search-results .sr-item:hover { background: var(--card-hover); }
+.sr-item .sr-top { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.sr-item .sr-badge {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent-dim);
+  color: #fff;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.sr-item .sr-episode { font-size: 0.8rem; color: var(--text-dim); }
+.sr-item .sr-subject { font-weight: 600; font-size: 0.9rem; }
+.sr-item .sr-action { font-size: 0.8rem; color: var(--text-dim); margin-top: 2px; }
+.sr-item .sr-score { font-size: 0.7rem; color: var(--text-muted); }
+.search-results .sr-empty { padding: 20px; text-align: center; color: var(--text-muted); }
+
+/* ─── Main content ─── */
+#app { max-width: 1280px; margin: 0 auto; padding: 24px; }
+
+/* ─── Stats banner ─── */
+.stats-banner {
+  display: flex;
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+.stat-item {
+  flex: 1;
+  background: var(--card);
+  padding: 16px 18px;
+  text-align: center;
+}
+.stat-item .stat-val {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.2;
+}
+.stat-item .stat-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* ─── Breadcrumb / back ─── */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: color 0.15s;
+  background: none;
+  border: none;
+  font-family: inherit;
+}
+.back-btn:hover { color: var(--accent); }
+
+/* ─── Page titles ─── */
+.page-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+.page-title .subtitle { font-size: 0.9rem; color: var(--text-dim); font-weight: 400; margin-left: 10px; }
+
+/* ─── Card grids ─── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-dim);
+  box-shadow: 0 4px 20px rgba(79,195,247,0.08);
+}
+
+.card-thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: linear-gradient(135deg, #1a1a2e 0%, #2a2a4e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 2rem;
+  overflow: hidden;
+  position: relative;
+}
+.card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.card-thumb .thumb-placeholder {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.card-body { padding: 14px 16px; }
+.card-body .card-id { font-size: 0.75rem; color: var(--accent); font-weight: 600; letter-spacing: 0.5px; margin-bottom: 2px; }
+.card-body .card-title { font-size: 1rem; font-weight: 600; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-body .card-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-dim); }
+.card-body .card-meta span { display: flex; align-items: center; gap: 4px; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.badge-green { background: rgba(102,187,106,0.15); color: var(--green); }
+.badge-gray { background: rgba(136,136,136,0.15); color: var(--text-dim); }
+
+/* Add collection card */
+.card-add {
+  border: 2px dashed var(--border);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  cursor: default;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.card-add:hover { opacity: 0.7; transform: none; border-color: var(--text-muted); box-shadow: none; }
+.card-add-inner { text-align: center; color: var(--text-muted); }
+.card-add-inner .plus { font-size: 2rem; line-height: 1; margin-bottom: 4px; }
+.card-add-inner .label { font-size: 0.85rem; }
+.card-hidden { opacity: 0.35; filter: grayscale(0.8); }
+.card-hidden:hover { opacity: 0.6; }
+.hide-toggle { position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; z-index: 2; }
+.hide-toggle:hover { color: var(--red); background: rgba(255,255,255,0.05); }
+.card { position: relative; }
+
+/* ─── Episode detail ─── */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+@media (max-width: 700px) { .detail-grid { grid-template-columns: 1fr; } }
+
+.detail-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.detail-card h3 {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+
+/* Raw data tables */
+.raw-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.raw-table th { text-align: left; color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; padding: 4px 8px; border-bottom: 1px solid #333; }
+.raw-table td { padding: 4px 8px; border-bottom: 1px solid #1a1a2e; color: var(--text-dim); }
+.raw-table tr:hover td { background: rgba(79,195,247,0.05); }
+.raw-key { color: var(--accent); font-family: monospace; font-weight: 600; }
+.raw-val { color: var(--text); }
+
+/* Bar chart */
+.bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.bar-label { width: 110px; font-size: 0.82rem; text-align: right; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { flex: 1; height: 18px; background: rgba(79,195,247,0.08); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.4s ease; min-width: 2px; }
+.bar-val { width: 36px; font-size: 0.75rem; color: var(--text-dim); text-align: right; flex-shrink: 0; }
+
+/* Scene list */
+.scene-list { max-height: 400px; overflow-y: auto; }
+.scene-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(42,42,74,0.5);
+  font-size: 0.85rem;
+}
+.scene-row:last-child { border-bottom: none; }
+.scene-num { width: 36px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+.scene-loc { flex: 1; }
+.scene-mood { color: var(--text-dim); font-size: 0.78rem; }
+
+/* Action button */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: rgba(79,195,247,0.1);
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+.btn:hover { background: rgba(79,195,247,0.2); }
+
+/* ─── Loading / error ─── */
+.loading-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--text-dim);
+  gap: 12px;
+}
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error-wrap {
+  text-align: center;
+  padding: 40px;
+  color: var(--red);
+}
+.error-wrap .error-msg { font-size: 0.9rem; margin-top: 8px; color: var(--text-dim); }
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ─── Responsive ─── */
+@media (max-width: 600px) {
+  #app-header { padding: 0 12px; gap: 10px; }
+  #app { padding: 16px; }
+  .stats-banner { flex-wrap: wrap; }
+  .stat-item { min-width: 33%; }
+  .card-grid { grid-template-columns: 1fr; }
+  .page-title { font-size: 1.3rem; }
+}
+
+/* Fade-in */
+.fade-in { animation: fadeIn 0.25s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<header id="app-header">
+  <div class="logo" onclick="navigate('/')">VSTACK<span>pipeline</span></div>
+  <div class="search-wrap">
+    <span class="search-icon">&#128269;</span>
+    <input type="text" id="search-input" placeholder="Search shots, characters, locations..." autocomplete="off" />
+    <div class="search-results" id="search-results"></div>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<script>
+(function() {
+  // ─── State ───
+  let globalStats = null;
+  let seriesList = null;
+  let episodeCache = {};
+  let episodeDetailCache = {};
+  let searchTimeout = null;
+  const app = document.getElementById('app');
+
+  // ─── API helpers ───
+  async function api(path) {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
+    return res.json();
+  }
+
+  function fmtNum(n) {
+    if (n == null) return '--';
+    return Number(n).toLocaleString();
+  }
+
+  function fmtDate(d) {
+    if (!d) return '--';
+    const dt = new Date(d);
+    if (isNaN(dt)) return d;
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function fmtDuration(sec) {
+    if (!sec) return '--';
+    const m = Math.floor(sec / 60);
+    const s = Math.round(sec % 60);
+    return `${m}m ${s < 10 ? '0' : ''}${s}s`;
+  }
+
+  function truncate(s, len) {
+    if (!s) return '';
+    return s.length > len ? s.slice(0, len) + '...' : s;
+  }
+
+  // ─── Rendering helpers ───
+  function html(tag, attrs, ...children) {
+    const el = document.createElement(tag);
+    if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+      if (k === 'className') el.className = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (k === 'innerHTML') el.innerHTML = v;
+      else el.setAttribute(k, v);
+    });
+    children.flat().forEach(c => {
+      if (c == null) return;
+      el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    });
+    return el;
+  }
+
+  function renderLoading() {
+    return html('div', { className: 'loading-wrap' },
+      html('div', { className: 'spinner' }),
+      html('div', null, 'Loading...')
+    );
+  }
+
+  function renderError(msg) {
+    return html('div', { className: 'error-wrap' },
+      html('div', null, 'Unable to connect'),
+      html('div', { className: 'error-msg' }, msg || 'Check that the server is running on this port.')
+    );
+  }
+
+  function renderStatsBanner(stats) {
+    const items = [
+      ['Episodes', stats.episodes],
+      ['Scenes', stats.scenes],
+      ['Shots', stats.shots],
+      ['Dialogue', stats.dialogue],
+      ['DB Size', stats.dbSize || '--'],
+    ];
+    const banner = html('div', { className: 'stats-banner' });
+    items.forEach(([label, val]) => {
+      const isStr = typeof val === 'string';
+      banner.appendChild(html('div', { className: 'stat-item' },
+        html('div', { className: 'stat-val' }, isStr ? val : fmtNum(val)),
+        html('div', { className: 'stat-label' }, label)
+      ));
+    });
+    return banner;
+  }
+
+  // ─── Series grid (Home) ───
+  async function renderHome() {
+    app.innerHTML = '';
+    app.appendChild(renderLoading());
+
+    try {
+      const [stats, series] = await Promise.all([
+        globalStats || api('/api/stats'),
+        seriesList || api('/api/series'),
+      ]);
+      globalStats = stats;
+      seriesList = series;
+
+      // Auto-navigate if single series
+      if (series.length === 1 && !window.location.hash.includes('home')) {
+        navigate('/series/' + series[0].id);
+        return;
+      }
+
+      app.innerHTML = '';
+      const wrap = html('div', { className: 'fade-in' });
+
+      wrap.appendChild(html('h1', { className: 'page-title' }, 'Media Library'));
+      wrap.appendChild(renderStatsBanner(stats));
+
+      const grid = html('div', { className: 'card-grid' });
+
+      // Track hidden collections
+      const hiddenSeries = JSON.parse(localStorage.getItem('vstack-hidden-collections') || '[]');
+
+      series.forEach(s => {
+        const isHidden = hiddenSeries.includes(s.id);
+        const card = html('div', { className: 'card' + (isHidden ? ' card-hidden' : ''), onClick: (e) => {
+          if (e.target.classList.contains('hide-toggle')) return;
+          if (!isHidden) navigate('/series/' + s.id);
+        }});
+
+        // Hide/show toggle
+        const toggleBtn = html('button', {
+          className: 'hide-toggle',
+          title: isHidden ? 'Show collection' : 'Hide collection',
+          onClick: (e) => {
+            e.stopPropagation();
+            const hidden = JSON.parse(localStorage.getItem('vstack-hidden-collections') || '[]');
+            if (isHidden) {
+              localStorage.setItem('vstack-hidden-collections', JSON.stringify(hidden.filter(id => id !== s.id)));
+            } else {
+              hidden.push(s.id);
+              localStorage.setItem('vstack-hidden-collections', JSON.stringify(hidden));
+            }
+            renderHome();
+          }
+        }, isHidden ? '\u{1F441}' : '\u00D7');
+
+        card.appendChild(toggleBtn);
+        card.appendChild(html('div', { className: 'card-body' },
+          html('div', { className: 'card-title' }, s.title || `Series ${s.id}`),
+          html('div', { className: 'card-meta' },
+            html('span', null, `${fmtNum(s.episode_count)} episodes`),
+            html('span', null, `${fmtNum(s.shot_count)} shots`),
+            html('span', null, `${fmtNum(s.scene_count)} scenes`),
+          ),
+          s.last_analyzed
+            ? html('div', { className: 'card-meta', style: 'margin-top:6px' },
+                html('span', null, 'Last analyzed: ' + fmtDate(s.last_analyzed))
+              )
+            : null
+        ));
+        grid.appendChild(card);
+      });
+
+      // Add collection button
+      const addCard = html('div', { className: 'card card-add', onClick: () => showAddSeriesDialog() },
+        html('div', { className: 'card-add-inner' },
+          html('div', { className: 'plus' }, '+'),
+          html('div', { className: 'label' }, 'Add Collection')
+        )
+      );
+      grid.appendChild(addCard);
+
+      wrap.appendChild(grid);
+
+      // Show hidden count
+      const hiddenCount = hiddenSeries.filter(id => series.some(s => s.id === id)).length;
+      if (hiddenCount > 0) {
+        wrap.appendChild(html('div', { style: 'text-align:center;color:#555;font-size:12px;margin-top:12px' },
+          `${hiddenCount} hidden collections`));
+      }
+
+      // Advanced / Raw Data link
+      wrap.appendChild(html('div', { style: 'text-align:center;margin-top:24px' },
+        html('a', {
+          href: '#/advanced',
+          style: 'color:#555;font-size:12px;text-decoration:none',
+          onClick: (e) => { e.preventDefault(); navigate('/advanced'); }
+        }, '\u2699 Advanced: Raw Database'),
+        html('span', { style: 'margin:0 12px;color:#333' }, '|'),
+        html('a', {
+          href: '#',
+          style: 'color:#555;font-size:12px;text-decoration:none',
+          onClick: (e) => { e.preventDefault(); showImportDialog(); }
+        }, '\u{1F4E5} Import Collection')
+      ));
+
+      app.appendChild(wrap);
+    } catch (e) {
+      app.innerHTML = '';
+      app.appendChild(renderError(e.message));
+    }
+  }
+
+  // ─── Episode grid (Series) ───
+  async function renderSeries(seriesId) {
+    app.innerHTML = '';
+    app.appendChild(renderLoading());
+
+    try {
+      const episodes = episodeCache[seriesId] || await api('/api/episodes?series=' + encodeURIComponent(seriesId));
+      episodeCache[seriesId] = episodes;
+
+      // Get series title
+      if (!seriesList) seriesList = await api('/api/series');
+      const seriesInfo = seriesList.find(s => String(s.id) === String(seriesId));
+
+      app.innerHTML = '';
+      const wrap = html('div', { className: 'fade-in' });
+
+      // Back button — always show
+      wrap.appendChild(html('button', { className: 'back-btn', onClick: () => navigate('/home') },
+        '\u2190 Media Library'
+      ));
+
+      wrap.appendChild(html('h1', { className: 'page-title' },
+        seriesInfo ? seriesInfo.title : `Series ${seriesId}`,
+        html('span', { className: 'subtitle' }, `${episodes.length} episodes`)
+      ));
+
+      // Series stats
+      const totalShots = episodes.reduce((a, e) => a + (e.shot_count || 0), 0);
+      const totalScenes = episodes.reduce((a, e) => a + (e.scene_count || 0), 0);
+      const totalDialogue = episodes.reduce((a, e) => a + (e.dialogue_count || 0), 0);
+      const statsBanner = html('div', { className: 'stats-banner' });
+      [
+        ['Episodes', episodes.length],
+        ['Scenes', totalScenes],
+        ['Shots', totalShots],
+        ['Dialogue', totalDialogue],
+      ].forEach(([label, val]) => {
+        statsBanner.appendChild(html('div', { className: 'stat-item' },
+          html('div', { className: 'stat-val' }, fmtNum(val)),
+          html('div', { className: 'stat-label' }, label)
+        ));
+      });
+      wrap.appendChild(statsBanner);
+
+      const grid = html('div', { className: 'card-grid' });
+
+      episodes.forEach(ep => {
+        const card = html('div', { className: 'card', onClick: () => navigate('/episode/' + ep.id) });
+
+        // Thumbnail
+        const thumb = html('div', { className: 'card-thumb' });
+        const img = document.createElement('img');
+        img.src = ep.thumbnail ? `/${ep.thumbnail}` : `/${ep.id}/frames/sc1_sh4_first.jpg`;
+        img.alt = ep.title || ep.id;
+        img.loading = 'lazy';
+        img.onerror = function() {
+          this.style.display = 'none';
+          thumb.appendChild(html('div', { className: 'thumb-placeholder' }, ep.id));
+        };
+        thumb.appendChild(img);
+        card.appendChild(thumb);
+
+        // Body
+        const hasScenes = ep.scene_count && ep.scene_count > 0;
+        const badge = html('span', { className: 'badge ' + (hasScenes ? 'badge-green' : 'badge-gray') },
+          hasScenes ? '\u2705 Analyzed' : '\u23F3 Pending'
+        );
+
+        const title = ep.title || (ep.filename ? truncate(ep.filename, 30) : ep.id);
+
+        card.appendChild(html('div', { className: 'card-body' },
+          html('div', { className: 'card-id' }, ep.id),
+          html('div', { className: 'card-title' }, title),
+          html('div', { className: 'card-meta' },
+            html('span', null, `${fmtNum(ep.scene_count)} scenes`),
+            html('span', null, `${fmtNum(ep.shot_count)} shots`),
+            badge
+          )
+        ));
+
+        grid.appendChild(card);
+      });
+
+      wrap.appendChild(grid);
+
+      // Collection actions
+      const actions = html('div', { style: 'display:flex;gap:10px;margin-top:20px;justify-content:center' });
+
+      // Export button
+      actions.appendChild(html('button', {
+        className: 'btn',
+        style: 'background:#1b5e20',
+        onClick: () => {
+          const a = document.createElement('a');
+          a.href = '/api/export/' + encodeURIComponent(seriesId);
+          a.download = '';
+          a.click();
+        }
+      }, '\u{1F4E6} Export Collection'));
+
+      // Import button
+      actions.appendChild(html('button', {
+        className: 'btn',
+        style: 'background:#0d3b66',
+        onClick: () => showImportDialog()
+      }, '\u{1F4E5} Import Collection'));
+
+      wrap.appendChild(actions);
+
+      app.appendChild(wrap);
+    } catch (e) {
+      app.innerHTML = '';
+      app.appendChild(renderError(e.message));
+    }
+  }
+
+  // ─── Episode detail ───
+  async function renderEpisode(episodeId) {
+    app.innerHTML = '';
+    app.appendChild(renderLoading());
+
+    try {
+      const ep = episodeDetailCache[episodeId] || await api('/api/episode/' + encodeURIComponent(episodeId));
+      episodeDetailCache[episodeId] = ep;
+
+      // Find which series this belongs to
+      let parentSeriesId = null;
+      if (seriesList) {
+        // Try to find from episode cache
+        for (const [sid, eps] of Object.entries(episodeCache)) {
+          if (eps.some(e => String(e.id) === String(episodeId))) { parentSeriesId = sid; break; }
+        }
+      }
+
+      app.innerHTML = '';
+      const wrap = html('div', { className: 'fade-in' });
+
+      // Back
+      wrap.appendChild(html('button', { className: 'back-btn', onClick: () => {
+        if (parentSeriesId) navigate('/series/' + parentSeriesId);
+        else navigate('/');
+      }}, '\u2190 Back'));
+
+      wrap.appendChild(html('h1', { className: 'page-title' }, ep.title || episodeId));
+
+      // Quick stats
+      const qstats = html('div', { className: 'stats-banner' });
+      [
+        ['Scenes', ep.scenes ? ep.scenes.length : (ep.scene_count || '--')],
+        ['Shots', ep.shot_count || ep.shots || '--'],
+        ['Dialogue', ep.dialogue_count || (ep.dialogue && ep.dialogue.length) || '--'],
+        ['Duration', ep.duration_sec ? fmtDuration(ep.duration_sec) : '--'],
+      ].forEach(([label, val]) => {
+        const isStr = typeof val === 'string';
+        qstats.appendChild(html('div', { className: 'stat-item' },
+          html('div', { className: 'stat-val' }, isStr ? val : fmtNum(val)),
+          html('div', { className: 'stat-label' }, label)
+        ));
+      });
+      wrap.appendChild(qstats);
+
+      // Detail grid
+      const grid = html('div', { className: 'detail-grid' });
+
+      // Top characters / subjects
+      const subjects = ep.topSubjects || ep.topCharacters || [];
+      if (subjects.length) {
+        const maxVal = Math.max(...subjects.map(s => s.count || s.value || 0));
+        const card = html('div', { className: 'detail-card' });
+        card.appendChild(html('h3', null, 'Top Characters'));
+        subjects.slice(0, 8).forEach(s => {
+          const name = s.name || s.label || s.subject || '';
+          const val = s.count || s.value || 0;
+          const pct = maxVal > 0 ? (val / maxVal * 100) : 0;
+          card.appendChild(html('div', { className: 'bar-row' },
+            html('div', { className: 'bar-label', title: name }, name),
+            html('div', { className: 'bar-track' },
+              html('div', { className: 'bar-fill', style: `width:${pct}%` })
+            ),
+            html('div', { className: 'bar-val' }, fmtNum(val))
+          ));
+        });
+        grid.appendChild(card);
+      }
+
+      // Top speakers
+      const speakers = ep.topSpeakers || [];
+      if (speakers.length) {
+        const maxVal = Math.max(...speakers.map(s => s.count || s.value || 0));
+        const card = html('div', { className: 'detail-card' });
+        card.appendChild(html('h3', null, 'Top Speakers'));
+        speakers.slice(0, 8).forEach(s => {
+          const name = s.name || s.label || s.speaker || '';
+          const val = s.count || s.value || 0;
+          const pct = maxVal > 0 ? (val / maxVal * 100) : 0;
+          card.appendChild(html('div', { className: 'bar-row' },
+            html('div', { className: 'bar-label', title: name }, name),
+            html('div', { className: 'bar-track' },
+              html('div', { className: 'bar-fill', style: `width:${pct}%` })
+            ),
+            html('div', { className: 'bar-val' }, fmtNum(val))
+          ));
+        });
+        grid.appendChild(card);
+      }
+
+      // Shot types
+      const shotTypes = ep.shotTypes || [];
+      if (shotTypes.length) {
+        const maxVal = Math.max(...shotTypes.map(s => s.count || s.value || 0));
+        const card = html('div', { className: 'detail-card' });
+        card.appendChild(html('h3', null, 'Shot Types'));
+        shotTypes.slice(0, 8).forEach(s => {
+          const name = s.name || s.label || s.type || s.shot_type || '';
+          const val = s.count || s.value || 0;
+          const pct = maxVal > 0 ? (val / maxVal * 100) : 0;
+          card.appendChild(html('div', { className: 'bar-row' },
+            html('div', { className: 'bar-label', title: name }, name),
+            html('div', { className: 'bar-track' },
+              html('div', { className: 'bar-fill', style: `width:${pct}%` })
+            ),
+            html('div', { className: 'bar-val' }, fmtNum(val))
+          ));
+        });
+        grid.appendChild(card);
+      }
+
+      // Scene list
+      const scenes = ep.scenes || [];
+      if (scenes.length) {
+        const card = html('div', { className: 'detail-card' });
+        card.appendChild(html('h3', null, `Scenes (${scenes.length})`));
+        const list = html('div', { className: 'scene-list' });
+        scenes.forEach((sc, i) => {
+          list.appendChild(html('div', { className: 'scene-row' },
+            html('span', { className: 'scene-num' }, String(i + 1)),
+            html('span', { className: 'scene-loc' }, sc.location || sc.heading || '--'),
+            html('span', { className: 'scene-mood' }, sc.mood || '')
+          ));
+        });
+        card.appendChild(list);
+        grid.appendChild(card);
+      }
+
+      wrap.appendChild(grid);
+
+      // Open report button
+      const btnWrap = html('div', { style: 'margin-top:8px' });
+      const btn = html('button', { className: 'btn', onClick: () => {
+        window.open('/' + episodeId + '/scene-review-report.html', '_blank');
+      }}, '\u{1F4CB} Open Scene Review Report');
+      btnWrap.appendChild(btn);
+      wrap.appendChild(btnWrap);
+
+      app.appendChild(wrap);
+    } catch (e) {
+      app.innerHTML = '';
+      app.appendChild(renderError(e.message));
+    }
+  }
+
+  // ─── Search ───
+  const searchInput = document.getElementById('search-input');
+  const searchResults = document.getElementById('search-results');
+
+  searchInput.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    const q = this.value.trim();
+    if (q.length < 2) {
+      searchResults.classList.remove('visible');
+      return;
+    }
+    searchTimeout = setTimeout(async () => {
+      try {
+        const results = await api('/api/search?q=' + encodeURIComponent(q));
+        renderSearchResults(results);
+      } catch (e) {
+        searchResults.innerHTML = '';
+        searchResults.appendChild(html('div', { className: 'sr-empty' }, 'Search unavailable'));
+        searchResults.classList.add('visible');
+      }
+    }, 300);
+  });
+
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      searchResults.classList.remove('visible');
+      this.blur();
+    }
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.search-wrap')) {
+      searchResults.classList.remove('visible');
+    }
+  });
+
+  function renderSearchResults(results) {
+    searchResults.innerHTML = '';
+    if (!results || results.length === 0) {
+      searchResults.appendChild(html('div', { className: 'sr-empty' }, 'No results found'));
+      searchResults.classList.add('visible');
+      return;
+    }
+
+    results.slice(0, 20).forEach(r => {
+      const item = html('div', { className: 'sr-item', onClick: () => {
+        searchResults.classList.remove('visible');
+        searchInput.value = '';
+        if (r.episode_id) {
+          window.open('/' + r.episode_id + '/scene-review-report.html', '_blank');
+        }
+      }});
+
+      const top = html('div', { className: 'sr-top' });
+      if (r.shot_type) top.appendChild(html('span', { className: 'sr-badge' }, r.shot_type));
+      if (r.episode_id) top.appendChild(html('span', { className: 'sr-episode' }, r.episode_id));
+      if (r.scene_number != null) top.appendChild(html('span', { className: 'sr-episode' }, `Sc${r.scene_number}`));
+      if (r._searchScore != null) top.appendChild(html('span', { className: 'sr-score' }, `score: ${r._searchScore.toFixed(2)}`));
+      item.appendChild(top);
+
+      if (r.subject) item.appendChild(html('div', { className: 'sr-subject' }, r.subject));
+      if (r.action) item.appendChild(html('div', { className: 'sr-action' }, truncate(r.action, 120)));
+
+      searchResults.appendChild(item);
+    });
+    searchResults.classList.add('visible');
+  }
+
+  // ─── Advanced / Raw Data ───
+  async function renderAdvanced() {
+    app.innerHTML = '';
+    app.appendChild(renderLoading());
+
+    try {
+      const stats = globalStats || await api('/api/stats');
+      globalStats = stats;
+      const series = seriesList || await api('/api/series');
+      const episodes = await api('/api/episodes');
+
+      app.innerHTML = '';
+      const wrap = html('div', { className: 'fade-in' });
+
+      wrap.appendChild(html('button', { className: 'back-btn', onClick: () => navigate('/') }, '\u2190 Back'));
+      wrap.appendChild(html('h1', { className: 'page-title' }, '\u2699 Raw Database'));
+
+      // Database overview
+      const overview = html('div', { className: 'detail-card', style: 'margin-bottom:16px' });
+      overview.appendChild(html('h3', null, 'Database Overview'));
+      const table1 = html('table', { className: 'raw-table' });
+      [
+        ['Episodes', stats.episodes],
+        ['Scenes', stats.scenes],
+        ['Shots', stats.shots],
+        ['Dialogue Lines', stats.dialogue],
+        ['Database Size', stats.dbSize],
+      ].forEach(([k, v]) => {
+        table1.appendChild(html('tr', null,
+          html('td', { className: 'raw-key' }, k),
+          html('td', { className: 'raw-val' }, String(v))
+        ));
+      });
+      overview.appendChild(table1);
+      wrap.appendChild(overview);
+
+      // Series table
+      const seriesCard = html('div', { className: 'detail-card', style: 'margin-bottom:16px' });
+      seriesCard.appendChild(html('h3', null, 'Collections (' + series.length + ')'));
+      const st = html('table', { className: 'raw-table' });
+      st.appendChild(html('tr', null,
+        html('th', null, 'ID'), html('th', null, 'Title'), html('th', null, 'Episodes'), html('th', null, 'Shots'), html('th', null, 'Last Analyzed')
+      ));
+      series.forEach(s => {
+        st.appendChild(html('tr', null,
+          html('td', { className: 'raw-key' }, s.id),
+          html('td', null, s.title || '--'),
+          html('td', null, String(s.episode_count)),
+          html('td', null, fmtNum(s.shot_count)),
+          html('td', null, s.last_analyzed ? fmtDate(s.last_analyzed) : '--')
+        ));
+      });
+      seriesCard.appendChild(st);
+      wrap.appendChild(seriesCard);
+
+      // Episodes table
+      const epCard = html('div', { className: 'detail-card', style: 'margin-bottom:16px' });
+      epCard.appendChild(html('h3', null, 'Episodes (' + episodes.length + ')'));
+      const et = html('table', { className: 'raw-table' });
+      et.appendChild(html('tr', null,
+        html('th', null, 'ID'), html('th', null, 'Collections'), html('th', null, 'Title'),
+        html('th', null, 'Duration'), html('th', null, 'Scenes'), html('th', null, 'Shots'),
+        html('th', null, 'Dialogue'), html('th', null, 'Analyzed')
+      ));
+      episodes.forEach(e => {
+        et.appendChild(html('tr', null,
+          html('td', { className: 'raw-key' }, e.id),
+          html('td', null, e.series_id || '--'),
+          html('td', null, e.title || e.filename?.slice(0, 40) || '--'),
+          html('td', null, e.duration_sec ? fmtDuration(e.duration_sec) : '--'),
+          html('td', null, String(e.scene_count || 0)),
+          html('td', null, String(e.shot_count || 0)),
+          html('td', null, String(e.dialogue_count || 0)),
+          html('td', null, e.analyzed_at ? fmtDate(e.analyzed_at) : '--')
+        ));
+      });
+      epCard.appendChild(et);
+      wrap.appendChild(epCard);
+
+      // Top characters
+      if (stats.topCharacters?.length) {
+        const card = html('div', { className: 'detail-card', style: 'margin-bottom:16px' });
+        card.appendChild(html('h3', null, 'Top Characters/Subjects (' + stats.topCharacters.length + ')'));
+        const t = html('table', { className: 'raw-table' });
+        stats.topCharacters.forEach(c => {
+          t.appendChild(html('tr', null,
+            html('td', { className: 'raw-key' }, c.subject || '--'),
+            html('td', null, String(c.count))
+          ));
+        });
+        card.appendChild(t);
+        wrap.appendChild(card);
+      }
+
+      // Shot types
+      if (stats.shotTypes?.length) {
+        const card = html('div', { className: 'detail-card', style: 'margin-bottom:16px' });
+        card.appendChild(html('h3', null, 'Shot Types'));
+        const t = html('table', { className: 'raw-table' });
+        stats.shotTypes.forEach(c => {
+          t.appendChild(html('tr', null,
+            html('td', { className: 'raw-key' }, c.shot_type || '--'),
+            html('td', null, String(c.count))
+          ));
+        });
+        card.appendChild(t);
+        wrap.appendChild(card);
+      }
+
+      // API endpoints reference
+      const apiCard = html('div', { className: 'detail-card' });
+      apiCard.appendChild(html('h3', null, 'API Endpoints'));
+      const apiTable = html('table', { className: 'raw-table' });
+      [
+        ['GET /api/stats', 'Global statistics'],
+        ['GET /api/series', 'All series with counts'],
+        ['GET /api/episodes?series=ID', 'Episodes for a collection'],
+        ['GET /api/episode/ID', 'Episode detail with scenes/speakers/shot types'],
+        ['GET /api/search?q=QUERY', 'Semantic search across all shots'],
+      ].forEach(([endpoint, desc]) => {
+        const link = html('a', { href: endpoint.split(' ')[1], target: '_blank', style: 'color:var(--accent);text-decoration:none' }, endpoint);
+        apiTable.appendChild(html('tr', null,
+          html('td', null, link),
+          html('td', { style: 'color:var(--text-dim)' }, desc)
+        ));
+      });
+      apiCard.appendChild(apiTable);
+      wrap.appendChild(apiCard);
+
+      // Raw database tables
+      const rawTables = await api('/api/raw-tables');
+      const dbCard = html('div', { className: 'detail-card', style: 'margin-bottom:16px' });
+      dbCard.appendChild(html('h3', null, 'Database Tables'));
+
+      for (const [tableName, info] of Object.entries(rawTables)) {
+        const section = html('div', { style: 'margin-bottom:20px' });
+        section.appendChild(html('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:8px' },
+          html('strong', { style: 'color:var(--accent);font-family:monospace' }, tableName),
+          html('span', { style: 'color:var(--text-muted);font-size:11px' }, `${fmtNum(info.count)} rows, ${info.columns.length} columns`),
+          html('button', {
+            className: 'btn',
+            style: 'font-size:10px;padding:2px 8px',
+            onClick: () => browseTable(tableName)
+          }, 'Browse')
+        ));
+
+        // Column list
+        section.appendChild(html('div', { style: 'font-size:11px;color:var(--text-dim);margin-bottom:6px' },
+          info.columns.join(' \u2022 ')
+        ));
+
+        // Sample rows
+        if (info.sample.length > 0) {
+          const t = html('table', { className: 'raw-table', style: 'font-size:10px' });
+          const headerRow = html('tr');
+          info.columns.forEach(col => headerRow.appendChild(html('th', null, col)));
+          t.appendChild(headerRow);
+          info.sample.forEach(row => {
+            const tr = html('tr');
+            info.columns.forEach(col => {
+              const val = row[col];
+              const display = val === null ? '--' : String(val).slice(0, 60) + (String(val).length > 60 ? '...' : '');
+              tr.appendChild(html('td', { title: String(val || '') }, display));
+            });
+            t.appendChild(tr);
+          });
+          section.appendChild(t);
+        }
+        dbCard.appendChild(section);
+      }
+      wrap.appendChild(dbCard);
+
+      app.appendChild(wrap);
+    } catch (e) {
+      app.innerHTML = '';
+      app.appendChild(renderError(e.message));
+    }
+  }
+
+  // Browse a specific table with pagination
+  async function browseTable(tableName, offset = 0) {
+    app.innerHTML = '';
+    app.appendChild(renderLoading());
+
+    try {
+      const data = await api(`/api/raw-table/${encodeURIComponent(tableName)}?limit=50&offset=${offset}`);
+      app.innerHTML = '';
+      const wrap = html('div', { className: 'fade-in' });
+
+      wrap.appendChild(html('button', { className: 'back-btn', onClick: () => navigate('/advanced') }, '\u2190 Back to Advanced'));
+      wrap.appendChild(html('h1', { className: 'page-title' }, tableName));
+      wrap.appendChild(html('div', { style: 'color:var(--text-muted);margin-bottom:12px;font-size:12px' },
+        `${fmtNum(data.count)} total rows | Showing ${data.offset + 1}-${Math.min(data.offset + data.rows.length, data.count)}`
+      ));
+
+      const card = html('div', { className: 'detail-card' });
+      const t = html('table', { className: 'raw-table', style: 'font-size:10px' });
+
+      // Header
+      const headerRow = html('tr');
+      data.columns.forEach(col => headerRow.appendChild(html('th', null, col.name + ' (' + col.type + ')')));
+      t.appendChild(headerRow);
+
+      // Rows
+      data.rows.forEach(row => {
+        const tr = html('tr');
+        data.columns.forEach(col => {
+          const val = row[col.name];
+          const display = val === null ? '--' : String(val).slice(0, 80) + (String(val).length > 80 ? '...' : '');
+          tr.appendChild(html('td', { title: String(val || ''), style: 'max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, display));
+        });
+        t.appendChild(tr);
+      });
+      card.appendChild(t);
+
+      // Pagination
+      const pagination = html('div', { style: 'display:flex;gap:10px;margin-top:12px;justify-content:center' });
+      if (data.offset > 0) {
+        pagination.appendChild(html('button', { className: 'btn', onClick: () => browseTable(tableName, Math.max(0, data.offset - 50)) }, '\u2190 Previous'));
+      }
+      if (data.offset + data.rows.length < data.count) {
+        pagination.appendChild(html('button', { className: 'btn', onClick: () => browseTable(tableName, data.offset + 50) }, 'Next \u2192'));
+      }
+      card.appendChild(pagination);
+
+      wrap.appendChild(card);
+      app.appendChild(wrap);
+    } catch (e) {
+      app.innerHTML = '';
+      app.appendChild(renderError(e.message));
+    }
+  }
+
+  // ─── Add Collection Dialog ───
+  function showAddSeriesDialog() {
+    const overlay = html('div', {
+      style: 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:100;display:flex;align-items:center;justify-content:center',
+      onClick: (e) => { if (e.target === overlay) overlay.remove(); }
+    });
+
+    const dialog = html('div', {
+      style: 'background:var(--card-bg);border-radius:12px;padding:24px;width:400px;max-width:90vw;border:1px solid #333'
+    });
+
+    dialog.appendChild(html('h3', { style: 'color:var(--accent);margin-bottom:16px' }, 'Add New Collection'));
+
+    const idInput = document.createElement('input');
+    idInput.placeholder = 'Collection ID (e.g. tng, ds9, voyager)';
+    idInput.style.cssText = 'width:100%;padding:8px;background:#0a0a1a;border:1px solid #333;color:#eee;border-radius:4px;margin-bottom:10px;font-size:13px';
+
+    const titleInput = document.createElement('input');
+    titleInput.placeholder = 'Full Title (e.g. Star Trek: Deep Space Nine)';
+    titleInput.style.cssText = idInput.style.cssText;
+
+    const btnRow = html('div', { style: 'display:flex;gap:8px;margin-top:16px;justify-content:flex-end' });
+
+    btnRow.appendChild(html('button', {
+      className: 'btn',
+      style: 'background:#333;color:#aaa',
+      onClick: () => overlay.remove()
+    }, 'Cancel'));
+
+    btnRow.appendChild(html('button', {
+      className: 'btn',
+      onClick: async () => {
+        const id = idInput.value.trim();
+        const title = titleInput.value.trim();
+        if (!id || !title) { alert('Both fields required'); return; }
+        try {
+          await fetch('/api/series', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, title })
+          });
+          seriesList = null; // bust cache
+          overlay.remove();
+          renderHome();
+        } catch (e) {
+          alert('Failed: ' + e.message);
+        }
+      }
+    }, 'Create'));
+
+    dialog.appendChild(idInput);
+    dialog.appendChild(titleInput);
+    dialog.appendChild(btnRow);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    idInput.focus();
+  }
+
+  // ─── Import Dialog ───
+  function showImportDialog() {
+    const overlay = html('div', {
+      style: 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:100;display:flex;align-items:center;justify-content:center',
+      onClick: (e) => { if (e.target === overlay) overlay.remove(); }
+    });
+
+    const dialog = html('div', {
+      style: 'background:var(--card-bg);border-radius:12px;padding:24px;width:450px;max-width:90vw;border:1px solid #333'
+    });
+
+    dialog.appendChild(html('h3', { style: 'color:var(--accent);margin-bottom:8px' }, 'Import Collection'));
+    dialog.appendChild(html('p', { style: 'color:var(--text-dim);font-size:12px;margin-bottom:16px' },
+      'Select a .vstack.zip file exported from another vstack instance. This will import all episode metadata and frame thumbnails.'));
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.zip,.vstack.zip';
+    fileInput.style.cssText = 'width:100%;padding:8px;background:#0a0a1a;border:1px solid #333;color:#eee;border-radius:4px;margin-bottom:10px';
+
+    const statusDiv = html('div', { style: 'color:var(--text-dim);font-size:12px;margin-top:8px;min-height:20px' });
+
+    const btnRow = html('div', { style: 'display:flex;gap:8px;margin-top:16px;justify-content:flex-end' });
+    btnRow.appendChild(html('button', {
+      className: 'btn',
+      style: 'background:#333;color:#aaa',
+      onClick: () => overlay.remove()
+    }, 'Cancel'));
+
+    const importBtn = html('button', {
+      className: 'btn',
+      onClick: async () => {
+        if (!fileInput.files?.length) { statusDiv.textContent = 'Select a file first'; return; }
+        const file = fileInput.files[0];
+        statusDiv.textContent = 'Importing ' + file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' MB)...';
+        importBtn.disabled = true;
+        importBtn.textContent = 'Importing...';
+
+        try {
+          const buffer = await file.arrayBuffer();
+          const resp = await fetch('/api/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: buffer
+          });
+          const result = await resp.json();
+          if (result.success) {
+            statusDiv.style.color = '#4caf50';
+            statusDiv.textContent = result.message;
+            seriesList = null; // bust cache
+            setTimeout(() => { overlay.remove(); renderHome(); }, 1500);
+          } else {
+            statusDiv.style.color = '#e94560';
+            statusDiv.textContent = 'Error: ' + (result.error || 'Unknown error');
+            importBtn.disabled = false;
+            importBtn.textContent = 'Import';
+          }
+        } catch (e) {
+          statusDiv.style.color = '#e94560';
+          statusDiv.textContent = 'Error: ' + e.message;
+          importBtn.disabled = false;
+          importBtn.textContent = 'Import';
+        }
+      }
+    }, 'Import');
+    btnRow.appendChild(importBtn);
+
+    dialog.appendChild(fileInput);
+    dialog.appendChild(statusDiv);
+    dialog.appendChild(btnRow);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+  }
+
+  // ─── Routing ───
+  function navigate(path) {
+    window.location.hash = path;
+  }
+
+  function route() {
+    const hash = window.location.hash.slice(1) || '/';
+    const parts = hash.split('/').filter(Boolean);
+
+    if (parts[0] === 'series' && parts[1]) {
+      renderSeries(parts[1]);
+    } else if (parts[0] === 'episode' && parts[1]) {
+      renderEpisode(parts[1]);
+    } else if (parts[0] === 'advanced') {
+      renderAdvanced();
+    } else if (parts[0] === 'home') {
+      renderHome();
+    } else {
+      renderHome();
+    }
+  }
+
+  window.addEventListener('hashchange', route);
+
+  // Keyboard shortcut: focus search with /
+  document.addEventListener('keydown', function(e) {
+    if (e.key === '/' && document.activeElement !== searchInput) {
+      e.preventDefault();
+      searchInput.focus();
+    }
+  });
+
+  // Initial route
+  route();
+})();
+</script>
+</body>
+</html>

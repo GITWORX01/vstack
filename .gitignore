@@ -1,10 +1,7 @@
 node_modules/
-.env
 *.db
-*.db-wal
-*.db-shm
-_tmp_*
-_req.json
-_cache_req.json
-_cache-id.txt
-*.output
+.env
+_export_tmp/
+_import_tmp/
+_import.zip
+*.vstack.zip
