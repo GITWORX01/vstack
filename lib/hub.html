@@ -395,6 +395,108 @@ a:hover { text-decoration: underline; }
 /* Fade-in */
 .fade-in { animation: fadeIn 0.25s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ─── File Browser ─── */
+.file-browser {
+  background: #0a0a1a;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+.file-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(79,195,247,0.05);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+.file-breadcrumb span {
+  cursor: pointer;
+  color: var(--accent);
+  transition: opacity 0.15s;
+}
+.file-breadcrumb span:hover { opacity: 0.7; }
+.file-breadcrumb .sep { color: var(--text-muted); cursor: default; }
+.file-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(42,42,74,0.3);
+  transition: background 0.12s;
+}
+.file-entry:last-child { border-bottom: none; }
+.file-entry:hover { background: rgba(79,195,247,0.06); }
+.file-entry.selected { background: rgba(102,187,106,0.12); border-left: 3px solid var(--green); }
+.file-entry.srt { opacity: 0.4; cursor: default; }
+.file-entry .file-icon { flex-shrink: 0; font-size: 1rem; }
+.file-entry .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-entry .file-size { flex-shrink: 0; font-size: 0.7rem; color: var(--text-muted); }
+
+/* ─── Add Episode Dialog ─── */
+.add-ep-dialog { background: var(--card); border-radius: 12px; padding: 24px; width: 600px; max-width: 95vw; max-height: 90vh; overflow-y: auto; border: 1px solid #333; }
+.add-ep-dialog h3 { color: var(--accent); margin-bottom: 16px; }
+.add-ep-dialog label { display: block; font-size: 0.78rem; color: var(--text-dim); margin-bottom: 4px; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.3px; }
+.add-ep-dialog input, .add-ep-dialog select {
+  width: 100%; padding: 8px 10px; background: #0a0a1a; border: 1px solid #333;
+  color: #eee; border-radius: 4px; font-size: 13px; font-family: inherit;
+}
+.add-ep-dialog input:focus, .add-ep-dialog select:focus { border-color: var(--accent); outline: none; }
+.add-ep-dialog .cost-row {
+  display: flex; gap: 16px; margin-top: 14px; padding: 12px; background: rgba(79,195,247,0.05);
+  border-radius: 6px; font-size: 0.85rem; align-items: center;
+}
+.add-ep-dialog .cost-row .cost-val { font-weight: 700; color: var(--accent); }
+
+/* ─── Progress Card ─── */
+.progress-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  min-height: 180px;
+}
+.progress-card .progress-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.progress-card .progress-header .ep-id { font-weight: 700; color: var(--accent); font-size: 0.85rem; }
+.progress-card .progress-header .elapsed { font-size: 0.7rem; color: var(--text-muted); }
+.progress-bar {
+  width: 100%; height: 6px; background: rgba(79,195,247,0.1);
+  border-radius: 3px; overflow: hidden; margin-bottom: 10px;
+}
+.progress-bar .progress-fill {
+  height: 100%; background: var(--accent); border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.progress-bar .progress-fill.complete { background: var(--green); }
+.progress-bar .progress-fill.failed { background: var(--red); }
+.progress-step {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.82rem; padding: 3px 0; color: var(--text-dim);
+}
+.progress-step.active { color: var(--text); font-weight: 600; }
+.progress-step .step-icon { width: 18px; text-align: center; flex-shrink: 0; }
+.progress-stats {
+  display: flex; gap: 14px; margin-top: 8px; font-size: 0.75rem; color: var(--text-muted);
+}
+.progress-actions {
+  display: flex; gap: 6px; margin-top: 10px;
+}
+.progress-actions button {
+  padding: 4px 10px; font-size: 0.75rem; border-radius: 4px;
+  border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+  color: var(--text-dim); cursor: pointer; font-family: inherit;
+  transition: background 0.15s;
+}
+.progress-actions button:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+.progress-warning { color: var(--yellow); font-size: 0.75rem; margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -656,6 +758,29 @@ a:hover { text-decoration: underline; }
         grid.appendChild(card);
       });
 
+      // Check for any active analyses and show progress cards
+      try {
+        const activeResp = await fetch('/api/active-analyses');
+        if (activeResp.ok) {
+          const active = await activeResp.json();
+          for (const a of active) {
+            if (a.phase === 'complete') continue; // Skip completed, they'll show as regular cards
+            const progressCard = html('div', { className: 'card progress-card', id: 'progress-' + a.episodeId });
+            grid.appendChild(progressCard);
+            renderAnalysisProgress(a.episodeId, progressCard, seriesId);
+          }
+        }
+      } catch {}
+
+      // Add Episode card
+      const addCard = html('div', { className: 'card card-add', onClick: () => showAddEpisodeDialog(seriesId) },
+        html('div', { className: 'card-add-inner' },
+          html('div', { className: 'plus' }, '+'),
+          html('div', { className: 'label' }, 'Add Episode')
+        )
+      );
+      grid.appendChild(addCard);
+
       wrap.appendChild(grid);
 
       // Collection actions
@@ -878,6 +1003,50 @@ a:hover { text-decoration: underline; }
       }
 
       wrap.appendChild(grid);
+
+      // ── Analysis Settings (loaded from analysis-settings.json) ──
+      try {
+        const settingsResp = await fetch('/api/episode-settings/' + encodeURIComponent(episodeId));
+        if (settingsResp.ok) {
+          const settings = await settingsResp.json();
+          if (settings) {
+            const settingsCard = html('div', { className: 'detail-card', style: 'margin-top:16px' });
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = '\u2699 Analysis Settings & Parameters';
+            summary.style.cssText = 'cursor:pointer;color:var(--text-muted);font-size:0.85rem;padding:4px 0';
+            details.appendChild(summary);
+
+            const settingsGrid = html('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px' });
+
+            const sections = [
+              { title: 'Gemini API', keys: ['model', 'api', 'project', 'mediaResolution', 'temperature', 'maxOutputTokens', 'chunkMinutes', 'chunksProcessed', 'timestampFormat'] },
+              { title: 'Post-Processing', keys: ['sceneDetection', 'sceneThreshold', 'cutPointsDetected', 'snapTolerance', 'frameExtraction', 'frameResolution'] },
+              { title: 'Source', keys: ['episodeId', 'localFile', 'gcsUri', 'duration'] },
+              { title: 'Results', keys: ['totalScenes', 'totalShots', 'generatedAt'] },
+            ];
+
+            sections.forEach(sec => {
+              const secDiv = html('div', { style: 'background:#0a0a1a;border-radius:6px;padding:10px 14px' });
+              secDiv.appendChild(html('div', { style: 'color:var(--accent);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;font-weight:600' }, sec.title));
+              sec.keys.forEach(key => {
+                const val = settings[key];
+                if (val !== undefined && val !== null) {
+                  secDiv.appendChild(html('div', { style: 'display:flex;justify-content:space-between;padding:2px 0;font-size:0.78rem' },
+                    html('span', { style: 'color:var(--text-muted)' }, key),
+                    html('span', { style: 'color:var(--text);font-family:monospace' }, String(val))
+                  ));
+                }
+              });
+              settingsGrid.appendChild(secDiv);
+            });
+
+            details.appendChild(settingsGrid);
+            settingsCard.appendChild(details);
+            wrap.appendChild(settingsCard);
+          }
+        }
+      } catch {}
 
       app.appendChild(wrap);
     } catch (e) {
@@ -1209,6 +1378,550 @@ a:hover { text-decoration: underline; }
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
     idInput.focus();
+  }
+
+  // ─── Add Episode Dialog ───
+  function showAddEpisodeDialog(collectionId) {
+    let currentDir = 'C:\\Star Trek';
+    let selectedVideo = null;
+    let selectedSrt = null;
+    let browseEntries = [];
+    let durationSec = null;
+    let browseMode = 'video'; // 'video' or 'srt'
+
+    const overlay = html('div', {
+      style: 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center',
+      onClick: (e) => { if (e.target === overlay) overlay.remove(); }
+    });
+
+    const dialog = html('div', { className: 'add-ep-dialog' });
+    dialog.appendChild(html('h3', null, 'Add Episode'));
+
+    const inputStyle = 'width:100%;padding:8px 10px;background:#0a0a1a;border:1px solid #333;color:#eee;border-radius:4px;font-size:13px';
+
+    // ── Video Path ──
+    dialog.appendChild(html('label', { style: 'margin-top:0' }, 'Video File Path'));
+    const videoRow = html('div', { style: 'display:flex;gap:6px;margin-bottom:8px' });
+    const videoInput = document.createElement('input');
+    videoInput.placeholder = 'Click Browse or type path...';
+    videoInput.style.cssText = 'flex:1;' + inputStyle;
+    videoInput.addEventListener('change', () => {
+      const p = videoInput.value.trim();
+      if (p) {
+        selectedVideo = { path: p, name: p.split(/[\\/]/).pop(), size: null };
+        autoDetectFromVideo(selectedVideo);
+      }
+    });
+    const videoBrowseBtn = html('button', {
+      style: 'padding:8px 14px;background:#1a1a2e;color:var(--accent);border:1px solid #333;border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap',
+      onClick: () => { browseMode = 'video'; toggleBrowser(); }
+    }, 'Browse');
+    videoRow.appendChild(videoInput);
+    videoRow.appendChild(videoBrowseBtn);
+    dialog.appendChild(videoRow);
+
+    // ── SRT Path ──
+    dialog.appendChild(html('label', null, 'SRT Subtitle Path (optional)'));
+    const srtRow = html('div', { style: 'display:flex;gap:6px;margin-bottom:8px' });
+    const srtInput = document.createElement('input');
+    srtInput.placeholder = 'Auto-detected or click Browse...';
+    srtInput.style.cssText = 'flex:1;' + inputStyle + ';opacity:0.5';
+    const srtBrowseBtn = html('button', {
+      style: 'padding:8px 14px;background:#1a1a2e;color:var(--accent);border:1px solid #333;border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap',
+      onClick: () => { browseMode = 'srt'; toggleBrowser(); }
+    }, 'Browse');
+    srtRow.appendChild(srtInput);
+    srtRow.appendChild(srtBrowseBtn);
+    dialog.appendChild(srtRow);
+
+    // ── Server File Browser (hidden by default) ──
+    const browserLabel = html('div', { style: 'font-size:0.72rem;color:var(--accent);margin-bottom:4px;display:none' }, 'Select a file:');
+    const breadcrumbEl = html('div', { className: 'file-breadcrumb' });
+    const fileListEl = html('div', { style: 'min-height:60px' });
+    const browserPanel = html('div', { className: 'file-browser', style: 'display:none' }, breadcrumbEl, fileListEl);
+    dialog.appendChild(browserLabel);
+    dialog.appendChild(browserPanel);
+
+    let browserOpen = false;
+    function toggleBrowser() {
+      browserOpen = !browserOpen;
+      browserPanel.style.display = browserOpen ? 'block' : 'none';
+      browserLabel.style.display = browserOpen ? 'block' : 'none';
+      browserLabel.textContent = browseMode === 'video' ? 'Select a video file:' : 'Select a subtitle file:';
+      if (browserOpen) browseDir(currentDir);
+    }
+
+    // ── Episode Details ──
+    dialog.appendChild(html('label', null, 'Episode ID'));
+    const idInput = document.createElement('input');
+    idInput.placeholder = 'S02E03';
+    idInput.style.cssText = inputStyle;
+    dialog.appendChild(idInput);
+
+    dialog.appendChild(html('label', null, 'Episode Title'));
+    const titleInput = document.createElement('input');
+    titleInput.placeholder = 'Episode title';
+    titleInput.style.cssText = inputStyle;
+    dialog.appendChild(titleInput);
+
+    dialog.appendChild(html('label', null, 'Collection'));
+    const collSelect = document.createElement('select');
+    collSelect.style.cssText = inputStyle;
+    if (seriesList && seriesList.length > 0) {
+      seriesList.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.title || s.id;
+        if (String(s.id) === String(collectionId)) opt.selected = true;
+        collSelect.appendChild(opt);
+      });
+    } else {
+      const opt = document.createElement('option');
+      opt.value = collectionId;
+      opt.textContent = collectionId;
+      collSelect.appendChild(opt);
+    }
+    dialog.appendChild(collSelect);
+
+    dialog.appendChild(html('label', null, 'Region'));
+    const regionSelect = document.createElement('select');
+    regionSelect.style.cssText = inputStyle;
+    ['us-east1', 'us-central1', 'europe-west1', 'asia-northeast1'].forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r;
+      opt.textContent = r;
+      if (r === 'us-east1') opt.selected = true;
+      regionSelect.appendChild(opt);
+    });
+    dialog.appendChild(regionSelect);
+
+    // ── Cost Estimate ──
+    const costRow = html('div', { className: 'cost-row' });
+    const durationSpan = html('span', null, 'Duration: --');
+    const costSpan = html('span', { className: 'cost-val' }, '');
+    costRow.appendChild(durationSpan);
+    costRow.appendChild(costSpan);
+    dialog.appendChild(costRow);
+
+    // ── Buttons ──
+    const btnRow = html('div', { style: 'display:flex;gap:8px;margin-top:16px;justify-content:flex-end' });
+    btnRow.appendChild(html('button', {
+      className: 'btn btn-secondary',
+      onClick: () => overlay.remove()
+    }, 'Cancel'));
+
+    const submitBtn = html('button', { className: 'btn', onClick: startAnalysis }, 'Start Analysis');
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.4';
+    btnRow.appendChild(submitBtn);
+    dialog.appendChild(btnRow);
+
+    const statusDiv = html('div', { style: 'color:var(--text-dim);font-size:0.78rem;margin-top:8px;min-height:18px' });
+    dialog.appendChild(statusDiv);
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    // ── Browse directory ──
+    async function browseDir(dir) {
+      currentDir = dir;
+      fileListEl.innerHTML = '';
+      fileListEl.appendChild(html('div', { style: 'padding:12px;color:var(--text-muted);font-size:0.8rem' }, 'Loading...'));
+
+      try {
+        const resp = await fetch('/api/browse?dir=' + encodeURIComponent(dir));
+        if (!resp.ok) throw new Error('Browse failed');
+        const data = await resp.json();
+        browseEntries = data.entries || [];
+        currentDir = data.path || dir;
+
+        // Breadcrumbs
+        breadcrumbEl.innerHTML = '';
+        const parts = currentDir.replace(/\\/g, '/').split('/').filter(Boolean);
+        parts.forEach((part, i) => {
+          if (i > 0) breadcrumbEl.appendChild(html('span', { className: 'sep' }, '/'));
+          const fullPath = parts.slice(0, i + 1).join('/');
+          breadcrumbEl.appendChild(html('span', { onClick: () => browseDir(fullPath) }, part));
+        });
+
+        fileListEl.innerHTML = '';
+        if (browseEntries.length === 0) {
+          fileListEl.appendChild(html('div', { style: 'padding:12px;color:var(--text-muted);font-size:0.8rem' }, 'Empty directory'));
+          return;
+        }
+
+        const dirs = browseEntries.filter(e => e.type === 'directory');
+        const files = browseEntries.filter(e => e.type !== 'directory');
+
+        // Filter files based on browse mode
+        const relevantExts = browseMode === 'srt' ? ['srt', 'sub', 'ass'] : ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'webm'];
+
+        dirs.forEach(entry => {
+          fileListEl.appendChild(html('div', { className: 'file-entry', onClick: () => browseDir(entry.path) },
+            html('span', { className: 'file-icon' }, '\uD83D\uDCC1'),
+            html('span', { className: 'file-name' }, entry.name)
+          ));
+        });
+
+        files.forEach(entry => {
+          const ext = (entry.name.split('.').pop() || '').toLowerCase();
+          const isRelevant = relevantExts.includes(ext);
+          const isSelected = (browseMode === 'video' && selectedVideo && selectedVideo.path === entry.path)
+            || (browseMode === 'srt' && srtInput.value === (entry.path || ''));
+
+          if (!isRelevant && browseMode !== 'video') return; // In SRT mode, only show SRTs
+          fileListEl.appendChild(html('div', {
+            className: 'file-entry' + (isSelected ? ' selected' : '') + (!isRelevant ? ' srt' : ''),
+            onClick: isRelevant ? () => selectFile(entry) : undefined,
+            style: isRelevant ? 'cursor:pointer' : 'opacity:0.3;cursor:default'
+          },
+            html('span', { className: 'file-icon' }, isRelevant ? (browseMode === 'srt' ? '\uD83D\uDCDD' : '\uD83C\uDFAC') : '\uD83D\uDCC4'),
+            html('span', { className: 'file-name' }, entry.name),
+            entry.size ? html('span', { className: 'file-size' }, formatFileSize(entry.size)) : null
+          ));
+        });
+      } catch (e) {
+        fileListEl.innerHTML = '';
+        fileListEl.appendChild(html('div', { style: 'padding:12px;color:var(--red);font-size:0.8rem' }, 'Error: ' + e.message));
+      }
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes) return '';
+      if (bytes > 1e9) return (bytes / 1e9).toFixed(1) + ' GB';
+      if (bytes > 1e6) return (bytes / 1e6).toFixed(0) + ' MB';
+      return (bytes / 1e3).toFixed(0) + ' KB';
+    }
+
+    function selectFile(entry) {
+      if (browseMode === 'srt') {
+        selectedSrt = entry;
+        srtInput.value = entry.path;
+        srtInput.style.opacity = '1';
+        browserOpen = false;
+        browserPanel.style.display = 'none';
+        browserLabel.style.display = 'none';
+        return;
+      }
+
+      // Video selected
+      selectedVideo = entry;
+      videoInput.value = entry.path;
+      autoDetectFromVideo(entry);
+      browserOpen = false;
+      browserPanel.style.display = 'none';
+      browserLabel.style.display = 'none';
+    }
+
+    function autoDetectFromVideo(entry) {
+      // Auto-detect episode ID
+      const epMatch = entry.name.match(/[Ss](\d+)[Ee](\d+)/);
+      if (epMatch) {
+        idInput.value = 'S' + epMatch[1].padStart(2, '0') + 'E' + epMatch[2].padStart(2, '0');
+      }
+
+      // Auto-detect title
+      let title = entry.name.replace(/\.[^.]+$/, '');
+      title = title.replace(/.*[Ss]\d+[Ee]\d+[\s._-]*/, '');
+      title = title.replace(/[\s._-]*\(?(\d{3,4})[Pp]\)?.*/, '');
+      title = title.replace(/[._]/g, ' ').trim();
+      if (title) titleInput.value = title;
+
+      // Auto-detect SRT
+      if (browseEntries.length > 0 && epMatch) {
+        const srtEntry = browseEntries.find(e => {
+          const ext = (e.name.split('.').pop() || '').toLowerCase();
+          if (ext !== 'srt') return false;
+          const srtEpMatch = e.name.match(/[Ss](\d+)[Ee](\d+)/);
+          if (srtEpMatch && srtEpMatch[1] === epMatch[1] && srtEpMatch[2] === epMatch[2]) return true;
+          const srtAlt = e.name.match(/(\d+)x(\d+)/i);
+          if (srtAlt && parseInt(srtAlt[1]) === parseInt(epMatch[1]) && parseInt(srtAlt[2]) === parseInt(epMatch[2])) return true;
+          return false;
+        });
+        if (srtEntry) {
+          selectedSrt = srtEntry;
+          srtInput.value = srtEntry.path;
+          srtInput.style.opacity = '1';
+        }
+      }
+
+      // Cost estimate from file size
+      durationSec = null;
+      if (entry.size) {
+        const estHours = entry.size / (500 * 1e6);
+        durationSec = Math.round(estHours * 3600);
+        durationSpan.textContent = 'Duration: ~' + fmtDuration(durationSec) + ' (est.)';
+        costSpan.textContent = '~$' + estimateCost(durationSec).toFixed(2);
+      } else {
+        durationSpan.textContent = 'Duration: unknown';
+        costSpan.textContent = '';
+      }
+      updateSubmitState();
+    }
+
+    function estimateCost(sec) {
+      return (sec / 600) * 0.50;
+    }
+
+    function updateSubmitState() {
+      const ready = (selectedVideo || videoInput.value.trim()) && idInput.value.trim();
+      submitBtn.disabled = !ready;
+      submitBtn.style.opacity = ready ? '1' : '0.4';
+      submitBtn.textContent = durationSec ? 'Start Analysis (~$' + estimateCost(durationSec).toFixed(2) + ')' : 'Start Analysis';
+    }
+
+    idInput.addEventListener('input', updateSubmitState);
+    videoInput.addEventListener('input', updateSubmitState);
+
+    async function startAnalysis() {
+      const epId = idInput.value.trim().toUpperCase();
+      const videoPath = selectedVideo ? selectedVideo.path : videoInput.value.trim();
+      const srtPath = srtInput.value.trim() || undefined;
+      const title = titleInput.value.trim() || undefined;
+      const targetCollectionId = collSelect.value;
+      const region = regionSelect.value;
+
+      if (!epId || !videoPath) {
+        statusDiv.textContent = 'Episode ID and video file are required';
+        statusDiv.style.color = 'var(--red)';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = '0.4';
+      submitBtn.textContent = 'Starting...';
+      statusDiv.textContent = 'Submitting...';
+      statusDiv.style.color = 'var(--text-dim)';
+
+      try {
+        const body = { episodeId: epId, videoPath, title, region };
+        if (srtPath) body.srtPath = srtPath;
+        if (targetCollectionId) body.collectionId = targetCollectionId;
+
+        const resp = await fetch('/api/start-analysis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const result = await resp.json();
+
+        if (resp.ok) {
+          overlay.remove();
+          delete episodeCache[targetCollectionId];
+
+          const grid = document.querySelector('.card-grid');
+          if (grid) {
+            const addCardEl = grid.querySelector('.card-add');
+            const progressCard = html('div', { className: 'card progress-card', id: 'progress-' + epId });
+            if (addCardEl) grid.insertBefore(progressCard, addCardEl);
+            else grid.appendChild(progressCard);
+            renderAnalysisProgress(epId, progressCard, targetCollectionId);
+          }
+        } else {
+          statusDiv.textContent = 'Error: ' + (result.error || 'Unknown error');
+          statusDiv.style.color = 'var(--red)';
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+          submitBtn.textContent = 'Start Analysis';
+        }
+      } catch (e) {
+        statusDiv.textContent = 'Error: ' + e.message;
+        statusDiv.style.color = 'var(--red)';
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.textContent = 'Start Analysis';
+      }
+    }
+  }
+
+  // ─── Analysis Progress Display ───
+  function renderAnalysisProgress(episodeId, card, collectionId) {
+    let pollId = null;
+    let startTime = Date.now();
+
+    function getPhasePercent(phase, chunkNum, chunkTotal) {
+      switch (phase) {
+        case 'uploading': return 5;
+        case 'caching': return 10;
+        case 'analyzing':
+          if (chunkTotal > 0) return 10 + (chunkNum / chunkTotal) * 70;
+          return 40;
+        case 'scene-detection': return 85;
+        case 'extracting-frames': return 90;
+        case 'building-report': return 95;
+        case 'rebuilding-db': return 97;
+        case 'complete': return 100;
+        case 'failed': return 0;
+        case 'paused': return -1; // keep current
+        default: return 0;
+      }
+    }
+
+    function getPhaseLabel(phase, detail) {
+      switch (phase) {
+        case 'uploading': return '\uD83D\uDCE4 Uploading to cloud...';
+        case 'caching': return '\uD83D\uDDC4 Creating video cache...';
+        case 'analyzing': return '\uD83E\uDD16 Analyzing' + (detail ? ' chunk ' + detail : '...');
+        case 'scene-detection': return '\uD83D\uDD0D Detecting scene cuts...';
+        case 'extracting-frames': return '\uD83D\uDCF8 Extracting frames...';
+        case 'building-report': return '\uD83D\uDCDD Building report...';
+        case 'rebuilding-db': return '\uD83D\uDDC3 Updating database...';
+        case 'complete': return '\u2705 Analysis complete!';
+        case 'failed': return '\u274C Failed' + (detail ? ': ' + detail : '');
+        case 'paused': return '\u23F8 Paused';
+        default: return 'Waiting...';
+      }
+    }
+
+    function fmtElapsed(ms) {
+      const sec = Math.floor(ms / 1000);
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return m + 'm ' + (s < 10 ? '0' : '') + s + 's';
+    }
+
+    let lastPct = 0;
+
+    function render(status) {
+      card.innerHTML = '';
+      const phase = status.phase || 'waiting';
+      // Map status file field names to UI (analyze-episode writes chunk/totalChunks)
+      const chunkNum = status.chunk || status.chunkNum || 0;
+      const chunkTotal = status.totalChunks || status.chunkTotal || 0;
+      const totalScenes = status.totalScenesSoFar || status.scenes || 0;
+      const totalShots = status.totalShotsSoFar || status.shots || 0;
+      const chunkScenes = status.chunkScenes || 0;
+      const chunkShots = status.chunkShots || 0;
+      const chunkComplete = status.chunkComplete || false;
+      const estCost = status.estimatedCost || status.cost || 0;
+      const region = status.region || '';
+      const videoFile = status.videoFile || '';
+      const step = status.step || '';
+      const elapsed = status.elapsed ? fmtElapsed(status.elapsed * 1000) : fmtElapsed(Date.now() - startTime);
+
+      let pct = getPhasePercent(phase, chunkNum, chunkTotal);
+      if (pct === -1) pct = lastPct;
+      else lastPct = pct;
+
+      // Header
+      const header = html('div', { className: 'progress-header' },
+        html('span', { className: 'ep-id' }, episodeId + (videoFile ? ' — ' + videoFile : '')),
+        html('span', { className: 'elapsed' }, elapsed)
+      );
+      card.appendChild(header);
+
+      // Progress bar
+      const fillClass = phase === 'complete' ? ' complete' : phase === 'failed' ? ' failed' : '';
+      const bar = html('div', { className: 'progress-bar' },
+        html('div', { className: 'progress-fill' + fillClass, style: 'width:' + pct + '%' })
+      );
+      card.appendChild(bar);
+
+      // Phase label with detail
+      var detail = '';
+      if (phase === 'analyzing' && chunkTotal > 0) {
+        detail = 'Chunk ' + chunkNum + '/' + chunkTotal;
+        if (chunkComplete) detail += ' \u2714';
+        if (step) detail += ' — ' + step;
+      } else if (phase === 'failed') {
+        detail = status.error || '';
+      } else if (step) {
+        detail = step;
+      }
+      const label = html('div', { className: 'progress-step active' },
+        html('span', { className: 'step-icon' }, phase === 'complete' ? '\u2705' : phase === 'failed' ? '\u274C' : '\u23F3'),
+        html('span', null, getPhaseLabel(phase, detail))
+      );
+      card.appendChild(label);
+
+      // Detail line for chunk progress
+      if (phase === 'analyzing' && chunkTotal > 0) {
+        const chunkDetail = html('div', { style: 'font-size:0.72rem;color:var(--text-muted);padding:2px 0 4px 22px' });
+        if (chunkComplete && chunkScenes > 0) {
+          chunkDetail.textContent = 'Last chunk: ' + chunkScenes + ' scenes, ' + chunkShots + ' shots';
+        } else if (!chunkComplete) {
+          chunkDetail.textContent = step || 'Processing...';
+        }
+        card.appendChild(chunkDetail);
+      }
+
+      // Stats row — always show if we have any data
+      const stats = html('div', { className: 'progress-stats' });
+      if (totalScenes > 0) stats.appendChild(html('span', null, '\uD83C\uDFAC ' + totalScenes + ' scenes'));
+      if (totalShots > 0) stats.appendChild(html('span', null, '\uD83D\uDCF7 ' + totalShots + ' shots'));
+      if (estCost > 0) stats.appendChild(html('span', null, '\uD83D\uDCB0 ~$' + Number(estCost).toFixed(2)));
+      if (region) stats.appendChild(html('span', null, '\uD83C\uDF10 ' + region));
+      if (stats.children.length > 0) card.appendChild(stats);
+
+      // Stale heartbeat warning
+      if (status.stale && phase !== 'complete' && phase !== 'failed') {
+        card.appendChild(html('div', { className: 'progress-warning' }, '\u26A0 May be stuck \u2014 no heartbeat for 2+ minutes'));
+      }
+
+      // Action buttons
+      const actions = html('div', { className: 'progress-actions' });
+      if (phase !== 'complete' && phase !== 'failed') {
+        if (phase === 'paused') {
+          actions.appendChild(html('button', { onClick: () => controlAnalysis('resume') }, '\u25B6 Resume'));
+        } else {
+          actions.appendChild(html('button', { onClick: () => controlAnalysis('pause') }, '\u23F8 Pause'));
+        }
+        actions.appendChild(html('button', { onClick: () => controlAnalysis('cancel') }, '\u2715 Cancel'));
+      }
+      if (phase === 'failed') {
+        actions.appendChild(html('button', { onClick: () => controlAnalysis('retry') }, '\uD83D\uDD04 Retry'));
+      }
+      if (phase === 'complete') {
+        actions.appendChild(html('button', { onClick: () => {
+          clearInterval(pollId);
+          delete episodeCache[collectionId];
+          renderSeries(collectionId);
+        }}, '\u2714 View Episodes'));
+      }
+      card.appendChild(actions);
+    }
+
+    async function controlAnalysis(action) {
+      try {
+        await fetch('/api/analysis-control/' + encodeURIComponent(episodeId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action })
+        });
+      } catch (e) {
+        console.error('Control action failed:', e);
+      }
+    }
+
+    async function poll() {
+      try {
+        const resp = await fetch('/api/analysis-status/' + encodeURIComponent(episodeId));
+        if (!resp.ok) {
+          render({ phase: 'waiting' });
+          return;
+        }
+        const status = await resp.json();
+        render(status);
+
+        if (status.phase === 'complete') {
+          clearInterval(pollId);
+          delete episodeCache[collectionId];
+        } else if (status.phase === 'failed') {
+          // Keep polling in case of retry, but slow down
+          clearInterval(pollId);
+          pollId = setInterval(poll, 10000);
+        }
+      } catch (e) {
+        render({ phase: 'waiting' });
+      }
+    }
+
+    // Initial render
+    render({ phase: 'uploading' });
+
+    // Start polling
+    pollId = setInterval(poll, 3000);
+    poll();
   }
 
   // ─── Import Dialog ───
