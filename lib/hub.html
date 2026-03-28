@@ -341,6 +341,11 @@ a:hover { text-decoration: underline; }
   font-family: inherit;
 }
 .btn:hover { background: rgba(79,195,247,0.2); }
+.btn-secondary { border-color: var(--text-muted); color: var(--text-dim); background: rgba(255,255,255,0.03); }
+.btn-secondary:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+.btn-warn { border-color: #ff9800; color: #ff9800; background: rgba(255,152,0,0.08); }
+.btn-warn:hover { background: rgba(255,152,0,0.15); }
+.btn.loading { opacity: 0.5; pointer-events: none; }
 
 /* ─── Loading / error ─── */
 .loading-wrap {
@@ -814,12 +819,39 @@ a:hover { text-decoration: underline; }
 
       wrap.appendChild(grid);
 
-      // Open report button
-      const btnWrap = html('div', { style: 'margin-top:8px' });
-      const btn = html('button', { className: 'btn', onClick: () => {
+      // Action buttons
+      const btnWrap = html('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' });
+
+      btnWrap.appendChild(html('button', { className: 'btn', onClick: () => {
         window.open('/' + episodeId + '/scene-review-report.html', '_blank');
-      }}, '\u{1F4CB} Open Scene Review Report');
-      btnWrap.appendChild(btn);
+      }}, '\u{1F4CB} Scene Review Report'));
+
+      btnWrap.appendChild(html('button', { className: 'btn btn-secondary', onClick: () => exportEpisode(episodeId, ep.title || episodeId) },
+        '\u{1F4E6} Export Episode'));
+
+      // Import / restore
+      const importInput = document.createElement('input');
+      importInput.type = 'file';
+      importInput.accept = '.zip';
+      importInput.style.display = 'none';
+      importInput.onchange = (e) => { if (e.target.files[0]) importEpisode(episodeId, e.target.files[0]); };
+
+      const importBtn = html('button', { className: 'btn btn-secondary', onClick: () => importInput.click() },
+        '\u{1F4E5} Restore from Backup');
+      btnWrap.appendChild(importBtn);
+      btnWrap.appendChild(importInput);
+
+      // Backup status — show revert if backup exists
+      try {
+        const backupStatus = await fetch('/api/backup-status/' + encodeURIComponent(episodeId)).then(r => r.json());
+        if (backupStatus.exists) {
+          btnWrap.appendChild(html('button', {
+            className: 'btn btn-warn',
+            onClick: () => revertEpisode(episodeId)
+          }, '\u21a9 Revert to Original'));
+        }
+      } catch {}
+
       wrap.appendChild(btnWrap);
 
       app.appendChild(wrap);
@@ -1260,6 +1292,53 @@ a:hover { text-decoration: underline; }
     dialog.appendChild(btnRow);
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
+  }
+
+  // ─── Episode Export/Import/Revert ───
+  function exportEpisode(episodeId, title) {
+    const a = document.createElement('a');
+    a.href = '/api/export-episode/' + encodeURIComponent(episodeId);
+    a.download = episodeId + '.vstack.zip';
+    a.click();
+  }
+
+  async function importEpisode(episodeId, file) {
+    if (!confirm('Restore ' + episodeId + ' from backup file?\n\nCurrent data will be backed up before overwriting.')) return;
+
+    try {
+      const resp = await fetch('/api/import-episode/' + encodeURIComponent(episodeId), {
+        method: 'POST',
+        body: file
+      });
+      const result = await resp.json();
+      if (result.success) {
+        alert(result.message);
+        episodeDetailCache[episodeId] = null;
+        renderEpisode(episodeId);
+      } else {
+        alert('Import failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Import failed: ' + e.message);
+    }
+  }
+
+  async function revertEpisode(episodeId) {
+    if (!confirm('Revert ' + episodeId + ' to original analysis?\n\nThis will restore scenes.json from backup, re-extract all frames, and rebuild the database.\n\nThis cannot be undone.')) return;
+
+    try {
+      const resp = await fetch('/api/revert/' + encodeURIComponent(episodeId), { method: 'POST' });
+      const result = await resp.json();
+      if (result.success) {
+        alert(result.message);
+        episodeDetailCache[episodeId] = null;
+        renderEpisode(episodeId);
+      } else {
+        alert('Revert failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Revert failed: ' + e.message);
+    }
   }
 
   // ─── Routing ───
