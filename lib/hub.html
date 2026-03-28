@@ -745,6 +745,9 @@ a:hover { text-decoration: underline; }
         window.open('/' + episodeId + '/scene-review-report.html', '_blank');
       }}, '\u{1F4CB} Scene Review Report'));
 
+      btnWrap.appendChild(html('button', { className: 'btn btn-secondary', onClick: () => rebuildReport(episodeId) },
+        '\u{1F504} Rebuild Report'));
+
       const epTitle = (ep.title || episodeId).replace(/[^a-zA-Z0-9_\- ]/g, '');
       btnWrap.appendChild(html('button', { className: 'btn btn-secondary', onClick: () => exportEpisode(episodeId, epTitle) },
         '\u{1F4E6} Export Episode'));
@@ -1280,6 +1283,22 @@ a:hover { text-decoration: underline; }
     dialog.appendChild(btnRow);
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
+  }
+
+  // ─── Rebuild Report ───
+  async function rebuildReport(episodeId) {
+    if (!confirm('Rebuild Scene Review Report for ' + episodeId + '?')) return;
+    try {
+      const resp = await fetch('/api/rebuild-report/' + encodeURIComponent(episodeId), { method: 'POST' });
+      const result = await resp.json();
+      if (result.success) {
+        alert(result.message);
+      } else {
+        alert('Rebuild failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Rebuild failed: ' + e.message);
+    }
   }
 
   // ─── Restore Episode from File ───
