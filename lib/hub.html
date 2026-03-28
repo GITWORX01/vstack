@@ -520,34 +520,8 @@ a:hover { text-decoration: underline; }
 
       const grid = html('div', { className: 'card-grid' });
 
-      // Track hidden collections
-      const hiddenSeries = JSON.parse(localStorage.getItem('vstack-hidden-collections') || '[]');
-
       series.forEach(s => {
-        const isHidden = hiddenSeries.includes(s.id);
-        const card = html('div', { className: 'card' + (isHidden ? ' card-hidden' : ''), onClick: (e) => {
-          if (e.target.classList.contains('hide-toggle')) return;
-          if (!isHidden) navigate('/series/' + s.id);
-        }});
-
-        // Hide/show toggle
-        const toggleBtn = html('button', {
-          className: 'hide-toggle',
-          title: isHidden ? 'Show collection' : 'Hide collection',
-          onClick: (e) => {
-            e.stopPropagation();
-            const hidden = JSON.parse(localStorage.getItem('vstack-hidden-collections') || '[]');
-            if (isHidden) {
-              localStorage.setItem('vstack-hidden-collections', JSON.stringify(hidden.filter(id => id !== s.id)));
-            } else {
-              hidden.push(s.id);
-              localStorage.setItem('vstack-hidden-collections', JSON.stringify(hidden));
-            }
-            renderHome();
-          }
-        }, isHidden ? '\u{1F441}' : '\u00D7');
-
-        card.appendChild(toggleBtn);
+        const card = html('div', { className: 'card', onClick: () => navigate('/series/' + s.id) });
         card.appendChild(html('div', { className: 'card-body' },
           html('div', { className: 'card-title' }, s.title || `Series ${s.id}`),
           html('div', { className: 'card-meta' },
@@ -574,13 +548,6 @@ a:hover { text-decoration: underline; }
       grid.appendChild(addCard);
 
       wrap.appendChild(grid);
-
-      // Show hidden count
-      const hiddenCount = hiddenSeries.filter(id => series.some(s => s.id === id)).length;
-      if (hiddenCount > 0) {
-        wrap.appendChild(html('div', { style: 'text-align:center;color:#555;font-size:12px;margin-top:12px' },
-          `${hiddenCount} hidden collections`));
-      }
 
       // Advanced / Raw Data link
       wrap.appendChild(html('div', { style: 'text-align:center;margin-top:24px' },
@@ -697,10 +664,7 @@ a:hover { text-decoration: underline; }
         className: 'btn',
         style: 'background:#1b5e20',
         onClick: () => {
-          const a = document.createElement('a');
-          a.href = '/api/export/' + encodeURIComponent(seriesId);
-          a.download = '';
-          a.click();
+          window.location.href = '/api/export/' + encodeURIComponent(seriesId);
         }
       }, '\u{1F4E6} Export Collection'));
 
