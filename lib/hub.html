@@ -345,6 +345,8 @@ a:hover { text-decoration: underline; }
 .btn-secondary:hover { background: rgba(255,255,255,0.08); color: var(--text); }
 .btn-warn { border-color: #ff9800; color: #ff9800; background: rgba(255,152,0,0.08); }
 .btn-warn:hover { background: rgba(255,152,0,0.15); }
+.btn-danger { border-color: #e94560; color: #e94560; background: rgba(233,69,96,0.08); }
+.btn-danger:hover { background: rgba(233,69,96,0.15); }
 .btn.loading { opacity: 0.5; pointer-events: none; }
 
 /* ─── Loading / error ─── */
@@ -398,12 +400,7 @@ a:hover { text-decoration: underline; }
 <body>
 
 <header id="app-header">
-  <div class="logo" onclick="navigate('/')">VSTACK<span>pipeline</span></div>
-  <div class="search-wrap">
-    <span class="search-icon">&#128269;</span>
-    <input type="text" id="search-input" placeholder="Search shots, characters, locations..." autocomplete="off" />
-    <div class="search-results" id="search-results"></div>
-  </div>
+  <div class="logo" onclick="window.location.hash='/home'">VSTACK<span>video production pipeline</span></div>
 </header>
 
 <main id="app"></main>
@@ -756,6 +753,11 @@ a:hover { text-decoration: underline; }
         }
       } catch {}
 
+      btnWrap.appendChild(html('button', {
+        className: 'btn btn-danger',
+        onClick: () => deleteEpisode(episodeId, parentSeriesId)
+      }, '\u{1F5D1} Delete Episode'));
+
       wrap.appendChild(btnWrap);
 
       // Quick stats
@@ -866,41 +868,7 @@ a:hover { text-decoration: underline; }
     }
   }
 
-  // ─── Search ───
-  const searchInput = document.getElementById('search-input');
-  const searchResults = document.getElementById('search-results');
-
-  searchInput.addEventListener('input', function() {
-    clearTimeout(searchTimeout);
-    const q = this.value.trim();
-    if (q.length < 2) {
-      searchResults.classList.remove('visible');
-      return;
-    }
-    searchTimeout = setTimeout(async () => {
-      try {
-        const results = await api('/api/search?q=' + encodeURIComponent(q));
-        renderSearchResults(results);
-      } catch (e) {
-        searchResults.innerHTML = '';
-        searchResults.appendChild(html('div', { className: 'sr-empty' }, 'Search unavailable'));
-        searchResults.classList.add('visible');
-      }
-    }, 300);
-  });
-
-  searchInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-      searchResults.classList.remove('visible');
-      this.blur();
-    }
-  });
-
-  document.addEventListener('click', function(e) {
-    if (!e.target.closest('.search-wrap')) {
-      searchResults.classList.remove('visible');
-    }
-  });
+  // ─── Search (removed from header, kept for programmatic use) ───
 
   function renderSearchResults(results) {
     searchResults.innerHTML = '';
@@ -1406,6 +1374,31 @@ a:hover { text-decoration: underline; }
     }
   }
 
+  // ─── Delete Episode ───
+  async function deleteEpisode(episodeId, parentSeriesId) {
+    if (!confirm('Delete episode ' + episodeId + '?\n\nThis will remove:\n- scenes.json and all metadata\n- All frame thumbnails\n- Database records\n- Scene Review Report\n\nMake sure you have a backup first!')) return;
+
+    // Double confirm
+    const typed = prompt('Type the episode ID to confirm deletion:', '');
+    if (typed !== episodeId) { alert('Deletion cancelled — ID did not match.'); return; }
+
+    try {
+      const resp = await fetch('/api/delete-episode/' + encodeURIComponent(episodeId), { method: 'DELETE' });
+      const result = await resp.json();
+      if (result.success) {
+        alert(result.message);
+        episodeDetailCache[episodeId] = null;
+        for (const key of Object.keys(episodeCache)) { episodeCache[key] = null; }
+        if (parentSeriesId) navigate('/series/' + parentSeriesId);
+        else navigate('/home');
+      } else {
+        alert('Delete failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Delete failed: ' + e.message);
+    }
+  }
+
   // ─── Routing ───
   function navigate(path) {
     window.location.hash = path;
@@ -1430,13 +1423,7 @@ a:hover { text-decoration: underline; }
 
   window.addEventListener('hashchange', route);
 
-  // Keyboard shortcut: focus search with /
-  document.addEventListener('keydown', function(e) {
-    if (e.key === '/' && document.activeElement !== searchInput) {
-      e.preventDefault();
-      searchInput.focus();
-    }
-  });
+  // Keyboard shortcuts removed (search bar removed from header)
 
   // Initial route
   route();
