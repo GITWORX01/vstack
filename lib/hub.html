@@ -726,6 +726,38 @@ a:hover { text-decoration: underline; }
       }, '\u270E'));
       wrap.appendChild(titleRow);
 
+      // Action buttons (top of page)
+      const btnWrap = html('div', { style: 'margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap' });
+
+      btnWrap.appendChild(html('button', { className: 'btn', onClick: () => {
+        window.open('/' + episodeId + '/scene-review-report.html', '_blank');
+      }}, '\u{1F4CB} Scene Review Report'));
+
+      const epTitle = (ep.title || episodeId).replace(/[^a-zA-Z0-9_\- ]/g, '');
+      btnWrap.appendChild(html('button', { className: 'btn btn-secondary', onClick: () => exportEpisode(episodeId, epTitle) },
+        '\u{1F4E6} Export Episode'));
+
+      const importInput = document.createElement('input');
+      importInput.type = 'file';
+      importInput.accept = '.zip';
+      importInput.style.display = 'none';
+      importInput.onchange = (e) => { if (e.target.files[0]) importEpisode(episodeId, e.target.files[0]); };
+      btnWrap.appendChild(html('button', { className: 'btn btn-secondary', onClick: () => importInput.click() },
+        '\u{1F4E5} Restore from Backup'));
+      btnWrap.appendChild(importInput);
+
+      try {
+        const backupStatus = await fetch('/api/backup-status/' + encodeURIComponent(episodeId)).then(r => r.json());
+        if (backupStatus.exists) {
+          btnWrap.appendChild(html('button', {
+            className: 'btn btn-warn',
+            onClick: () => revertEpisode(episodeId)
+          }, '\u21a9 Revert to Original'));
+        }
+      } catch {}
+
+      wrap.appendChild(btnWrap);
+
       // Quick stats
       const qstats = html('div', { className: 'stats-banner' });
       [
@@ -826,41 +858,6 @@ a:hover { text-decoration: underline; }
       }
 
       wrap.appendChild(grid);
-
-      // Action buttons
-      const btnWrap = html('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' });
-
-      btnWrap.appendChild(html('button', { className: 'btn', onClick: () => {
-        window.open('/' + episodeId + '/scene-review-report.html', '_blank');
-      }}, '\u{1F4CB} Scene Review Report'));
-
-      btnWrap.appendChild(html('button', { className: 'btn btn-secondary', onClick: () => exportEpisode(episodeId, ep.title || episodeId) },
-        '\u{1F4E6} Export Episode'));
-
-      // Import / restore
-      const importInput = document.createElement('input');
-      importInput.type = 'file';
-      importInput.accept = '.zip';
-      importInput.style.display = 'none';
-      importInput.onchange = (e) => { if (e.target.files[0]) importEpisode(episodeId, e.target.files[0]); };
-
-      const importBtn = html('button', { className: 'btn btn-secondary', onClick: () => importInput.click() },
-        '\u{1F4E5} Restore from Backup');
-      btnWrap.appendChild(importBtn);
-      btnWrap.appendChild(importInput);
-
-      // Backup status — show revert if backup exists
-      try {
-        const backupStatus = await fetch('/api/backup-status/' + encodeURIComponent(episodeId)).then(r => r.json());
-        if (backupStatus.exists) {
-          btnWrap.appendChild(html('button', {
-            className: 'btn btn-warn',
-            onClick: () => revertEpisode(episodeId)
-          }, '\u21a9 Revert to Original'));
-        }
-      } catch {}
-
-      wrap.appendChild(btnWrap);
 
       app.appendChild(wrap);
     } catch (e) {
@@ -1363,9 +1360,10 @@ a:hover { text-decoration: underline; }
 
   // ─── Episode Export/Import/Revert ───
   function exportEpisode(episodeId, title) {
+    const safeName = (episodeId + ' - ' + title).replace(/[^a-zA-Z0-9_\- ]/g, '').trim();
     const a = document.createElement('a');
     a.href = '/api/export-episode/' + encodeURIComponent(episodeId);
-    a.download = episodeId + '.vstack.zip';
+    a.download = safeName + '.vstack.zip';
     a.click();
   }
 
