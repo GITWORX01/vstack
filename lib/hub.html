@@ -716,7 +716,15 @@ a:hover { text-decoration: underline; }
         else navigate('/');
       }}, '\u2190 Back'));
 
-      wrap.appendChild(html('h1', { className: 'page-title' }, ep.title || episodeId));
+      const titleRow = html('div', { style: 'display:flex;align-items:center;gap:10px;margin-bottom:4px' });
+      const titleEl = html('h1', { className: 'page-title', style: 'margin-bottom:0', id: 'ep-title' }, ep.title || episodeId);
+      titleRow.appendChild(titleEl);
+      titleRow.appendChild(html('button', {
+        style: 'background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:4px',
+        title: 'Rename episode',
+        onClick: () => showRenameDialog(episodeId, ep.title || episodeId)
+      }, '\u270E'));
+      wrap.appendChild(titleRow);
 
       // Quick stats
       const qstats = html('div', { className: 'stats-banner' });
@@ -1292,6 +1300,65 @@ a:hover { text-decoration: underline; }
     dialog.appendChild(btnRow);
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
+  }
+
+  // ─── Rename Episode ───
+  function showRenameDialog(episodeId, currentTitle) {
+    const overlay = html('div', {
+      style: 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:100;display:flex;align-items:center;justify-content:center',
+      onClick: (e) => { if (e.target === overlay) overlay.remove(); }
+    });
+
+    const dialog = html('div', {
+      style: 'background:var(--card-bg);border-radius:12px;padding:24px;width:400px;max-width:90vw;border:1px solid #333'
+    });
+
+    dialog.appendChild(html('h3', { style: 'color:var(--accent);margin-bottom:16px' }, 'Rename Episode'));
+    dialog.appendChild(html('div', { style: 'color:var(--text-muted);font-size:12px;margin-bottom:8px' }, episodeId));
+
+    const input = document.createElement('input');
+    input.value = currentTitle;
+    input.style.cssText = 'width:100%;padding:8px;background:#0a0a1a;border:1px solid #333;color:#eee;border-radius:4px;font-size:14px';
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doRename(); });
+    dialog.appendChild(input);
+
+    const btnRow = html('div', { style: 'display:flex;gap:8px;margin-top:16px;justify-content:flex-end' });
+    btnRow.appendChild(html('button', { className: 'btn btn-secondary', style: 'padding:6px 14px', onClick: () => overlay.remove() }, 'Cancel'));
+    btnRow.appendChild(html('button', { className: 'btn', style: 'padding:6px 14px', onClick: doRename }, 'Save'));
+    dialog.appendChild(btnRow);
+
+    async function doRename() {
+      const newTitle = input.value.trim();
+      if (!newTitle) return;
+      try {
+        const resp = await fetch('/api/rename-episode/' + encodeURIComponent(episodeId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: newTitle })
+        });
+        const result = await resp.json();
+        if (result.success) {
+          const titleEl = document.getElementById('ep-title');
+          if (titleEl) titleEl.textContent = newTitle;
+          episodeDetailCache[episodeId] = null;
+          // Update cache in episode lists too
+          for (const eps of Object.values(episodeCache)) {
+            const ep = eps.find(e => String(e.id) === String(episodeId));
+            if (ep) ep.title = newTitle;
+          }
+          overlay.remove();
+        } else {
+          alert('Rename failed: ' + (result.error || 'Unknown error'));
+        }
+      } catch (e) {
+        alert('Rename failed: ' + e.message);
+      }
+    }
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    input.select();
+    input.focus();
   }
 
   // ─── Episode Export/Import/Revert ───
