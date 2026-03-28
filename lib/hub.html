@@ -670,12 +670,27 @@ a:hover { text-decoration: underline; }
         }
       }, '\u{1F4E6} Export Collection'));
 
-      // Import button
+      // Import collection button
       actions.appendChild(html('button', {
         className: 'btn',
         style: 'background:#0d3b66',
         onClick: () => showImportDialog()
       }, '\u{1F4E5} Import Collection'));
+
+      // Restore single episode button
+      const restoreEpInput = document.createElement('input');
+      restoreEpInput.type = 'file';
+      restoreEpInput.accept = '.zip';
+      restoreEpInput.style.display = 'none';
+      restoreEpInput.onchange = (e) => {
+        if (e.target.files[0]) restoreEpisodeFromFile(e.target.files[0], seriesId);
+        restoreEpInput.value = '';
+      };
+      actions.appendChild(html('button', {
+        className: 'btn btn-secondary',
+        onClick: () => restoreEpInput.click()
+      }, '\u{1F4E5} Restore Episode'));
+      actions.appendChild(restoreEpInput);
 
       wrap.appendChild(actions);
 
@@ -1265,6 +1280,46 @@ a:hover { text-decoration: underline; }
     dialog.appendChild(btnRow);
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
+  }
+
+  // ─── Restore Episode from File ───
+  async function restoreEpisodeFromFile(file, seriesId) {
+    // Try to detect episode ID from filename (e.g. "S02E01 - The Child.vstack.zip")
+    const nameMatch = file.name.match(/^(S\d+E\d+)/i);
+    let episodeId = nameMatch ? nameMatch[1].toUpperCase() : null;
+
+    if (!episodeId) {
+      episodeId = prompt('Could not detect episode ID from filename.\nEnter episode ID (e.g. S02E01):');
+      if (!episodeId) return;
+      episodeId = episodeId.trim().toUpperCase();
+    }
+
+    if (!confirm('Restore episode ' + episodeId + ' from "' + file.name + '"?\n\nThis will create or overwrite the episode data.')) return;
+
+    try {
+      const resp = await fetch('/api/import-episode/' + encodeURIComponent(episodeId), {
+        method: 'POST',
+        body: file
+      });
+      const result = await resp.json();
+      if (result.success) {
+        // Assign to this series
+        if (seriesId) {
+          await fetch('/api/assign-episode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ episodeId, seriesId })
+          }).catch(() => {});
+        }
+        alert(result.message);
+        episodeCache[seriesId] = null;
+        renderSeries(seriesId);
+      } else {
+        alert('Restore failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Restore failed: ' + e.message);
+    }
   }
 
   // ─── Rename Episode ───
