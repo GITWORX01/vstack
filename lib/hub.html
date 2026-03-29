@@ -1868,6 +1868,7 @@ a:hover { text-decoration: underline; }
       if (chunkTotal > 0) stats.appendChild(html('span', null, '\uD83D\uDCE6 Chunk ' + chunkNum + '/' + chunkTotal));
       if (estCost > 0) stats.appendChild(html('span', null, '\uD83D\uDCB0 ~$' + Number(estCost).toFixed(2)));
       if (region) stats.appendChild(html('span', null, '\uD83C\uDF10 ' + region));
+      stats.appendChild(html('span', { style: status.cached ? 'color:#4caf50' : 'color:#e94560;font-weight:bold' }, status.cached ? '\uD83D\uDCBE Cached' : '\u26A0 UNCACHED'));
       if (stats.children.length > 0) card.appendChild(stats);
 
       // Stale heartbeat warning
