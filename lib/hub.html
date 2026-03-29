@@ -1502,7 +1502,7 @@ a:hover { text-decoration: underline; }
     dialog.appendChild(html('label', null, 'Region'));
     const regionSelect = document.createElement('select');
     regionSelect.style.cssText = inputStyle;
-    ['us-east1', 'us-central1', 'europe-west1', 'asia-northeast1'].forEach(r => {
+    ['us-east1', 'us-central1', 'europe-west1', 'asia-northeast1', 'global'].forEach(r => {
       const opt = document.createElement('option');
       opt.value = r;
       opt.textContent = r;
