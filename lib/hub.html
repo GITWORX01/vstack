@@ -1785,11 +1785,14 @@ a:hover { text-decoration: underline; }
     function render(status) {
       card.innerHTML = '';
       const phase = status.phase || 'waiting';
-      // Map status file field names to UI (analyze-episode writes chunk/totalChunks)
+      // Map ALL status file fields
       const chunkNum = status.chunk || status.chunkNum || 0;
       const chunkTotal = status.totalChunks || status.chunkTotal || 0;
-      const totalScenes = status.totalScenesSoFar || status.scenes || 0;
-      const totalShots = status.totalShotsSoFar || status.shots || 0;
+      const chunkRange = status.chunkRange || '';
+      const totalScenes = status.totalScenesSoFar || status.scenes || status.totalScenes || 0;
+      const totalShots = status.totalShotsSoFar || status.shots || status.shotsCompleted || 0;
+      const currentScene = status.currentScene || 0;
+      const passB = status.passB || false;
       const chunkScenes = status.chunkScenes || 0;
       const chunkShots = status.chunkShots || 0;
       const chunkComplete = status.chunkComplete || false;
@@ -1817,12 +1820,18 @@ a:hover { text-decoration: underline; }
       );
       card.appendChild(bar);
 
-      // Phase label with detail
+      // Phase label with rich detail
       var detail = '';
-      if (phase === 'analyzing' && chunkTotal > 0) {
-        detail = 'Chunk ' + chunkNum + '/' + chunkTotal;
-        if (chunkComplete) detail += ' \u2714';
-        if (step) detail += ' — ' + step;
+      if (phase === 'analyzing') {
+        var parts = [];
+        if (chunkTotal > 0) parts.push('Chunk ' + chunkNum + '/' + chunkTotal);
+        if (chunkRange) parts.push('(' + chunkRange + ')');
+        if (passB && currentScene > 0 && totalScenes > 0) {
+          parts.push('Shot scan: scene ' + currentScene + '/' + totalScenes);
+        } else if (!passB && step) {
+          parts.push(step);
+        }
+        detail = parts.join(' \u2022 ');
       } else if (phase === 'failed') {
         detail = status.error || '';
       } else if (step) {
@@ -1834,21 +1843,29 @@ a:hover { text-decoration: underline; }
       );
       card.appendChild(label);
 
-      // Detail line for chunk progress
-      if (phase === 'analyzing' && chunkTotal > 0) {
-        const chunkDetail = html('div', { style: 'font-size:0.72rem;color:var(--text-muted);padding:2px 0 4px 22px' });
-        if (chunkComplete && chunkScenes > 0) {
-          chunkDetail.textContent = 'Last chunk: ' + chunkScenes + ' scenes, ' + chunkShots + ' shots';
-        } else if (!chunkComplete) {
-          chunkDetail.textContent = step || 'Processing...';
+      // Live detail line
+      if (phase === 'analyzing') {
+        var detailParts = [];
+        if (totalShots > 0) detailParts.push(totalShots + ' shots found');
+        if (passB) detailParts.push('Pass B: getting shots per scene');
+        else detailParts.push('Pass A: identifying scenes');
+        if (step && !detail.includes(step)) detailParts.push(step);
+
+        card.appendChild(html('div', { style: 'font-size:0.72rem;color:var(--text-muted);padding:2px 0 4px 22px' },
+          detailParts.join(' \u2022 ')
+        ));
+      } else if (phase === 'uploading' || phase === 'caching') {
+        if (step) {
+          card.appendChild(html('div', { style: 'font-size:0.72rem;color:var(--text-muted);padding:2px 0 4px 22px' }, step));
         }
-        card.appendChild(chunkDetail);
       }
 
-      // Stats row — always show if we have any data
+      // Stats row — show all available data
       const stats = html('div', { className: 'progress-stats' });
       if (totalScenes > 0) stats.appendChild(html('span', null, '\uD83C\uDFAC ' + totalScenes + ' scenes'));
       if (totalShots > 0) stats.appendChild(html('span', null, '\uD83D\uDCF7 ' + totalShots + ' shots'));
+      if (currentScene > 0 && totalScenes > 0 && passB) stats.appendChild(html('span', null, '\uD83C\uDFAF Scene ' + currentScene + '/' + totalScenes));
+      if (chunkTotal > 0) stats.appendChild(html('span', null, '\uD83D\uDCE6 Chunk ' + chunkNum + '/' + chunkTotal));
       if (estCost > 0) stats.appendChild(html('span', null, '\uD83D\uDCB0 ~$' + Number(estCost).toFixed(2)));
       if (region) stats.appendChild(html('span', null, '\uD83C\uDF10 ' + region));
       if (stats.children.length > 0) card.appendChild(stats);
