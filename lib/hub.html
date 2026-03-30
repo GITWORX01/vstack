@@ -799,6 +799,61 @@ a:hover { text-decoration: underline; }
 
       wrap.appendChild(grid);
 
+      // Queue display
+      try {
+        const queue = await api('/api/queue');
+        const activeQueue = queue.filter(q => q.status === 'queued' || q.status === 'analyzing');
+        if (activeQueue.length > 0) {
+          const queueSection = html('div', { className: 'detail-card', style: 'margin-bottom:16px' });
+          queueSection.appendChild(html('h3', null, '\u{1F4CB} Analysis Queue (' + activeQueue.length + ')'));
+
+          activeQueue.forEach((item, idx) => {
+            const row = html('div', { style: 'display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid #1a1a2e' });
+
+            const statusIcon = item.status === 'analyzing' ? '\u{1F504}' : '\u{23F3}';
+            const posLabel = item.status === 'analyzing' ? 'Processing' : '#' + (idx + 1);
+
+            row.appendChild(html('span', { style: 'font-size:16px' }, statusIcon));
+            row.appendChild(html('span', { style: 'color:var(--accent);font-weight:bold;min-width:60px' }, item.episodeId));
+            row.appendChild(html('span', { style: 'color:var(--text-dim);flex:1' }, item.title || item.videoPath?.split(/[\\/]/).pop() || ''));
+            row.appendChild(html('span', { style: 'color:var(--text-muted);font-size:11px' }, posLabel));
+
+            // Delete button
+            const deleteBtn = html('button', {
+              style: 'background:none;border:1px solid #333;color:var(--red);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:11px',
+              onClick: async (e) => {
+                e.stopPropagation();
+                if (!confirm('Remove ' + item.episodeId + ' from queue?')) return;
+                await fetch('/api/queue/' + encodeURIComponent(item.episodeId), { method: 'DELETE' });
+                delete episodeCache[seriesId];
+                renderSeries(seriesId);
+              }
+            }, '\u2716 Remove');
+            row.appendChild(deleteBtn);
+
+            queueSection.appendChild(row);
+          });
+
+          // Clear completed button
+          const completedCount = queue.filter(q => q.status === 'complete' || q.status === 'failed').length;
+          if (completedCount > 0) {
+            queueSection.appendChild(html('div', { style: 'text-align:center;padding:8px' },
+              html('button', {
+                className: 'btn btn-secondary',
+                style: 'font-size:11px',
+                onClick: async () => {
+                  await fetch('/api/queue/clear-completed', { method: 'POST' });
+                  delete episodeCache[seriesId];
+                  renderSeries(seriesId);
+                }
+              }, 'Clear ' + completedCount + ' completed')
+            ));
+          }
+
+          wrap.appendChild(queueSection);
+        }
+      } catch {}
+
       // Collection actions
       const actions = html('div', { style: 'display:flex;gap:10px;margin-top:20px;justify-content:center' });
 
@@ -1530,6 +1585,11 @@ a:hover { text-decoration: underline; }
     submitBtn.disabled = true;
     submitBtn.style.opacity = '0.4';
     btnRow.appendChild(submitBtn);
+
+    const queueBtn = html('button', { className: 'btn', style: 'background:#1b5e20', onClick: () => addToQueue(overlay) }, '\u{1F4CB} Add to Queue');
+    queueBtn.disabled = true;
+    queueBtn.style.opacity = '0.4';
+    btnRow.appendChild(queueBtn);
     dialog.appendChild(btnRow);
 
     const statusDiv = html('div', { style: 'color:var(--text-dim);font-size:0.78rem;margin-top:8px;min-height:18px' });
@@ -1684,10 +1744,56 @@ a:hover { text-decoration: underline; }
       submitBtn.disabled = !ready;
       submitBtn.style.opacity = ready ? '1' : '0.4';
       submitBtn.textContent = durationSec ? 'Start Analysis (~$' + estimateCost(durationSec).toFixed(2) + ')' : 'Start Analysis';
+      queueBtn.disabled = !ready;
+      queueBtn.style.opacity = ready ? '1' : '0.4';
     }
 
     idInput.addEventListener('input', updateSubmitState);
     videoInput.addEventListener('input', updateSubmitState);
+
+    async function addToQueue(overlay) {
+      const epId = idInput.value.trim().toUpperCase();
+      const videoPath = selectedVideo ? selectedVideo.path : videoInput.value.trim();
+      if (!epId || !videoPath) { alert('Select a video file first'); return; }
+
+      queueBtn.disabled = true;
+      queueBtn.textContent = 'Adding...';
+
+      try {
+        const result = await fetch('/api/queue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            episodeId: epId,
+            videoPath,
+            srtPath: srtInput.value.trim() || null,
+            title: titleInput.value.trim() || null,
+            collectionId: collSelect.value || 'default',
+            region: regionSelect.value || 'us-east1',
+          })
+        }).then(r => r.json());
+
+        if (result.error) {
+          statusDiv.textContent = result.error;
+          statusDiv.style.color = 'var(--red)';
+          queueBtn.disabled = false;
+          queueBtn.textContent = '\u{1F4CB} Add to Queue';
+          return;
+        }
+
+        overlay.remove();
+        // Refresh to show queue
+        if (typeof renderSeries === 'function' && collSelect.value) {
+          delete episodeCache[collSelect.value];
+          navigate('/series/' + collSelect.value);
+        }
+      } catch (e) {
+        statusDiv.textContent = 'Error: ' + e.message;
+        statusDiv.style.color = 'var(--red)';
+        queueBtn.disabled = false;
+        queueBtn.textContent = '\u{1F4CB} Add to Queue';
+      }
+    }
 
     async function startAnalysis() {
       const epId = idInput.value.trim().toUpperCase();
