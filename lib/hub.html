@@ -769,12 +769,23 @@ a:hover { text-decoration: underline; }
                 img.style.opacity = '0.3';
                 img.src = '/' + data.thumbnail;
                 img.onload = () => { img.style.opacity = '1'; img.style.display = ''; };
-                // Save to database
+                // Save to database and bust cache
                 await fetch('/api/set-thumbnail/' + encodeURIComponent(ep.id), {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ thumbnail: data.thumbnail })
                 });
+                // Update cached episode data so reload shows the saved thumbnail
+                ep.thumbnail = data.thumbnail;
+                if (episodeCache) {
+                  for (const key of Object.keys(episodeCache)) {
+                    const cached = episodeCache[key];
+                    if (Array.isArray(cached)) {
+                      const match = cached.find(e => e.id === ep.id);
+                      if (match) match.thumbnail = data.thumbnail;
+                    }
+                  }
+                }
               }
             } catch {}
           }
