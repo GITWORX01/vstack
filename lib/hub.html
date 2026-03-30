@@ -1786,7 +1786,12 @@ a:hover { text-decoration: underline; }
     }
 
     function estimateCost(sec) {
-      return (sec / 600) * 0.50;
+      // Tier 1 v2: single Gemini call with 240p video (~$0.80-1.00 per episode)
+      // Input: ~180-250K tokens at $1.25/M (≤200K) or $2.50/M (>200K)
+      // Output: ~15-25K tokens at $10/M
+      // Thinking: ~5-15K tokens at $10/M
+      // Rough estimate: base $0.50 + $0.01 per minute of video
+      return 0.50 + (sec / 60) * 0.01;
     }
 
     function updateSubmitState() {
