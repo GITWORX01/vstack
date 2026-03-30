@@ -2066,6 +2066,21 @@ a:hover { text-decoration: underline; }
       }
       if (phase === 'failed') {
         actions.appendChild(html('button', { onClick: () => controlAnalysis('retry') }, '\uD83D\uDD04 Retry'));
+        actions.appendChild(html('button', {
+          style: 'background:#b71c1c;color:#fff',
+          onClick: async () => {
+            if (!confirm('Remove failed episode ' + episodeId + '? This clears the status and progress card.')) return;
+            try {
+              await fetch('/api/cancel-analysis/' + encodeURIComponent(episodeId), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deleteData: false })
+              });
+            } catch {}
+            clearInterval(pollId);
+            card.remove();
+          }
+        }, '\u2716 Remove'));
       }
       if (phase === 'complete') {
         actions.appendChild(html('button', { onClick: () => {
