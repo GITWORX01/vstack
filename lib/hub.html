@@ -1455,6 +1455,10 @@ a:hover { text-decoration: underline; }
     titleInput.placeholder = 'Full Title (e.g. Star Trek: Deep Space Nine)';
     titleInput.style.cssText = idInput.style.cssText;
 
+    const contextInput = document.createElement('textarea');
+    contextInput.placeholder = 'Content description — helps AI understand what it\'s analyzing.\ne.g. "Star Wars original trilogy sci-fi film" or "BBC nature documentary about ocean life"\nLeave empty for generic analysis.';
+    contextInput.style.cssText = idInput.style.cssText + 'height:60px;resize:vertical';
+
     const btnRow = html('div', { style: 'display:flex;gap:8px;margin-top:16px;justify-content:flex-end' });
 
     btnRow.appendChild(html('button', {
@@ -1473,7 +1477,7 @@ a:hover { text-decoration: underline; }
           await fetch('/api/series', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, title })
+            body: JSON.stringify({ id, title, contentContext: contextInput.value.trim() })
           });
           seriesList = null; // bust cache
           overlay.remove();
@@ -1486,6 +1490,8 @@ a:hover { text-decoration: underline; }
 
     dialog.appendChild(idInput);
     dialog.appendChild(titleInput);
+    dialog.appendChild(html('div', { style: 'font-size:11px;color:#666;margin-bottom:4px' }, 'Content Profile (optional)'));
+    dialog.appendChild(contextInput);
     dialog.appendChild(btnRow);
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
@@ -1575,6 +1581,13 @@ a:hover { text-decoration: underline; }
     titleInput.placeholder = 'Episode title';
     titleInput.style.cssText = inputStyle;
     dialog.appendChild(titleInput);
+
+    dialog.appendChild(html('label', null, 'Content Description'));
+    const contextInput = document.createElement('input');
+    contextInput.placeholder = 'e.g. "Star Trek TNG Season 2 episode" or "Nature documentary about coral reefs" or "Star Wars: A New Hope"';
+    contextInput.style.cssText = inputStyle;
+    contextInput.title = 'Helps the AI understand what kind of content this is — adapts character/location/category terminology';
+    dialog.appendChild(contextInput);
 
     dialog.appendChild(html('label', null, 'Collection'));
     const collSelect = document.createElement('select');
@@ -1883,6 +1896,8 @@ a:hover { text-decoration: underline; }
         const body = { episodeId: epId, videoPath, title, region, retries };
         if (srtPath) body.srtPath = srtPath;
         if (targetCollectionId) body.collectionId = targetCollectionId;
+        const ctx = contextInput.value.trim();
+        if (ctx) body.contentContext = ctx;
 
         const resp = await fetch('/api/start-analysis', {
           method: 'POST',
