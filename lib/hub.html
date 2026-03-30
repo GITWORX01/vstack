@@ -769,6 +769,12 @@ a:hover { text-decoration: underline; }
                 img.style.opacity = '0.3';
                 img.src = '/' + data.thumbnail;
                 img.onload = () => { img.style.opacity = '1'; img.style.display = ''; };
+                // Save to database
+                await fetch('/api/set-thumbnail/' + encodeURIComponent(ep.id), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ thumbnail: data.thumbnail })
+                });
               }
             } catch {}
           }
