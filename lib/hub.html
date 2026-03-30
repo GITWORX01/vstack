@@ -1598,11 +1598,19 @@ a:hover { text-decoration: underline; }
     dialog.appendChild(html('label', null, 'Region'));
     const regionSelect = document.createElement('select');
     regionSelect.style.cssText = inputStyle;
-    ['us-east1', 'us-central1', 'europe-west1', 'asia-northeast1', 'global'].forEach(r => {
+    [
+      { value: 'us-east1', label: 'US East (South Carolina)' },
+      { value: 'us-central1', label: 'US Central (Iowa)' },
+      { value: 'us-west1', label: 'US West (Oregon)' },
+      { value: 'us-west4', label: 'US West (Las Vegas)' },
+      { value: 'europe-west1', label: 'Europe (Belgium)' },
+      { value: 'asia-northeast1', label: 'Asia (Tokyo)' },
+      { value: 'global', label: 'Global' },
+    ].forEach(r => {
       const opt = document.createElement('option');
-      opt.value = r;
-      opt.textContent = r;
-      if (r === 'us-east1') opt.selected = true;
+      opt.value = r.value;
+      opt.textContent = r.label;
+      if (r.value === 'us-east1') opt.selected = true;
       regionSelect.appendChild(opt);
     });
     dialog.appendChild(regionSelect);
