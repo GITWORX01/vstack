@@ -1607,6 +1607,15 @@ a:hover { text-decoration: underline; }
     });
     dialog.appendChild(regionSelect);
 
+    dialog.appendChild(html('label', null, 'Max Retries'));
+    const retriesInput = document.createElement('input');
+    retriesInput.type = 'number';
+    retriesInput.min = '1';
+    retriesInput.max = '10';
+    retriesInput.value = '2';
+    retriesInput.style.cssText = inputStyle + ';width:80px';
+    dialog.appendChild(retriesInput);
+
     // ── Cost Estimate ──
     const costRow = html('div', { className: 'cost-row' });
     const durationSpan = html('span', null, 'Duration: --');
@@ -1857,7 +1866,8 @@ a:hover { text-decoration: underline; }
       statusDiv.style.color = 'var(--text-dim)';
 
       try {
-        const body = { episodeId: epId, videoPath, title, region };
+        const retries = parseInt(retriesInput.value) || 2;
+        const body = { episodeId: epId, videoPath, title, region, retries };
         if (srtPath) body.srtPath = srtPath;
         if (targetCollectionId) body.collectionId = targetCollectionId;
 
