@@ -1508,8 +1508,7 @@ a:hover { text-decoration: underline; }
     let browseMode = 'video'; // 'video' or 'srt'
 
     const overlay = html('div', {
-      style: 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center',
-      onClick: (e) => { if (e.target === overlay) overlay.remove(); }
+      style: 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center'
     });
 
     const dialog = html('div', { className: 'add-ep-dialog' });
