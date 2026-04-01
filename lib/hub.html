@@ -1010,6 +1010,66 @@ a:hover { text-decoration: underline; }
       btnWrap.appendChild(html('button', { className: 'btn btn-secondary', onClick: () => rebuildReport(episodeId) },
         '\u{1F504} Rebuild Report'));
 
+      btnWrap.appendChild(html('button', { className: 'btn', style: 'background:#9c27b0', onClick: async () => {
+        const btn = event.target;
+        btn.textContent = '\u23F3 Starting diarization...';
+        btn.disabled = true;
+        try {
+          const resp = await fetch('/api/tier15/start', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ episodeId })
+          });
+          const result = await resp.json();
+          if (resp.ok) {
+            btn.textContent = '\u{1F3A4} Running...';
+            // Open log viewer
+            const logOverlay = html('div', { className: 'log-overlay' });
+            const logBox = html('div', { style: 'background:#0a0a1a;border-radius:12px;width:800px;max-width:95vw;max-height:85vh;overflow:hidden;display:flex;flex-direction:column' });
+            logBox.appendChild(html('div', { style: 'padding:12px 16px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center' },
+              html('strong', { style: 'color:#9c27b0' }, '\u{1F3A4} Tier 1.5 — Speaker Diarization'),
+              html('button', { style: 'background:none;border:none;color:#888;font-size:18px;cursor:pointer', onClick: () => logOverlay.remove() }, '\u2716')
+            ));
+            const logContent = html('pre', { style: 'flex:1;overflow-y:auto;padding:12px 16px;font-size:11px;color:#ccc;white-space:pre-wrap;font-family:monospace;margin:0' }, 'Starting...');
+            logBox.appendChild(logContent);
+            logOverlay.appendChild(logBox);
+            document.body.appendChild(logOverlay);
+
+            // Poll log
+            const pollInterval = setInterval(async () => {
+              try {
+                const logResp = await fetch('/api/tier15/log/' + encodeURIComponent(episodeId));
+                const logText = await logResp.text();
+                if (logText) logContent.textContent = logText;
+                logContent.scrollTop = logContent.scrollHeight;
+
+                const statusResp = await fetch('/api/tier15/status/' + encodeURIComponent(episodeId));
+                const status = await statusResp.json();
+                if (status.phase === 'complete') {
+                  clearInterval(pollInterval);
+                  btn.textContent = '\u2705 Speakers identified!';
+                  btn.disabled = false;
+                  setTimeout(() => { btn.textContent = '\u{1F3A4} Tier 1.5 Speakers'; }, 3000);
+                } else if (status.phase === 'failed') {
+                  clearInterval(pollInterval);
+                  btn.textContent = '\u274C Failed';
+                  btn.disabled = false;
+                  setTimeout(() => { btn.textContent = '\u{1F3A4} Tier 1.5 Speakers'; }, 3000);
+                }
+              } catch {}
+            }, 3000);
+          } else {
+            btn.textContent = '\u274C ' + (result.error || 'Failed');
+            btn.disabled = false;
+            setTimeout(() => { btn.textContent = '\u{1F3A4} Tier 1.5 Speakers'; }, 3000);
+          }
+        } catch (e) {
+          btn.textContent = '\u274C Error';
+          btn.disabled = false;
+          alert(e.message);
+          setTimeout(() => { btn.textContent = '\u{1F3A4} Tier 1.5 Speakers'; }, 3000);
+        }
+      }}, '\u{1F3A4} Tier 1.5 Speakers'));
+
       const epTitle = (ep.title || episodeId).replace(/[^a-zA-Z0-9_\- ]/g, '');
       btnWrap.appendChild(html('button', { className: 'btn btn-secondary', onClick: () => exportEpisode(episodeId, epTitle) },
         '\u{1F4E6} Export Episode'));

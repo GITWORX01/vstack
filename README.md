@@ -33,6 +33,25 @@ cp -Rf ~/.claude/skills/vstack .claude/skills/vstack
 - [ffmpeg](https://ffmpeg.org/) — frame extraction and audio processing
 - [Google Cloud SDK](https://cloud.google.com/sdk) with Vertex AI enabled — video analysis
 - [ElevenLabs API key](https://elevenlabs.io/) — TTS narration (optional)
+- [Python 3.9+](https://python.org) — speaker diarization (Tier 1.5)
+- NVIDIA GPU recommended — speaker diarization runs ~15x faster on GPU
+
+### Speaker Diarization Setup (Tier 1.5)
+
+Tier 1.5 uses [pyannote-audio](https://github.com/pyannote/pyannote-audio) for local voice-based speaker identification. Free, runs on your GPU.
+
+```bash
+# Install dependencies (CUDA-enabled PyTorch for GPU)
+pip install pyannote.audio scipy
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# Create Hugging Face account and accept model terms:
+# 1. Sign up at https://huggingface.co/join
+# 2. Accept terms at https://huggingface.co/pyannote/speaker-diarization-3.1
+# 3. Accept terms at https://huggingface.co/pyannote/segmentation-3.0
+# 4. Create token at https://huggingface.co/settings/tokens (Read access)
+# 5. Add to .env: HF_TOKEN=hf_your_token_here
+```
 
 ## Skills (Slash Commands)
 
