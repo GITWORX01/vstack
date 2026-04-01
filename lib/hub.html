@@ -2686,6 +2686,22 @@ a:hover { text-decoration: underline; }
           }
         } catch (e) { alert('Failed: ' + e.message); }
       }}, '\uD83C\uDFAC Generate Composition'));
+      actions.appendChild(html('button', { className: 'btn', style: 'background:#ff9800;color:#000;font-weight:bold', onClick: async () => {
+        try {
+          const btn = event.target;
+          btn.textContent = '\u23F3 Launching Remotion...';
+          btn.disabled = true;
+          const resp = await fetch('/api/supercut/' + encodeURIComponent(projectName) + '/preview', { method: 'POST' });
+          const result = await resp.json();
+          if (result.success) {
+            btn.textContent = '\u2705 Studio launching!';
+            setTimeout(() => window.open('http://localhost:3000', '_blank'), 3000);
+          } else {
+            btn.textContent = '\u274C ' + (result.error || 'Failed');
+            setTimeout(() => { btn.textContent = '\uD83C\uDFAC Preview in Remotion'; btn.disabled = false; }, 3000);
+          }
+        } catch (e) { alert('Failed: ' + e.message); }
+      }}, '\uD83C\uDFAC Preview in Remotion'));
       actions.appendChild(html('button', { className: 'btn', style: 'background:#1a1a2e;border:1px solid #333', onClick: () => {
         const projPath = 'gemini-analysis/_supercuts/' + projectName;
         window.open('/' + projPath + '/scenes.ts', '_blank');
