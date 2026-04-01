@@ -838,6 +838,31 @@ a:hover { text-decoration: underline; }
       );
       grid.appendChild(addCard);
 
+      // New Supercut card
+      const supercutCard = html('div', { className: 'card card-add', style: 'border-color:#e94560', onClick: () => showNewSupercutDialog() },
+        html('div', { className: 'card-add-inner' },
+          html('div', { className: 'plus', style: 'color:#e94560' }, '\u2702'),
+          html('div', { className: 'label' }, 'New Supercut')
+        )
+      );
+      grid.appendChild(supercutCard);
+
+      // Show existing supercut projects
+      try {
+        const supercuts = await api('/api/supercuts');
+        for (const sc of supercuts) {
+          const scCard = html('div', { className: 'card', style: 'border-left:3px solid #e94560;cursor:pointer', onClick: () => navigate('/supercut/' + encodeURIComponent(sc.name)) });
+          scCard.appendChild(html('div', { className: 'card-body' },
+            html('div', { className: 'card-title', style: 'color:#e94560' }, '\u2702 ' + sc.name),
+            html('div', { className: 'card-meta' },
+              html('span', null, sc.clipCount + ' clips'),
+              html('span', null, sc.query ? '"' + sc.query + '"' : '')
+            )
+          ));
+          grid.appendChild(scCard);
+        }
+      } catch {}
+
       wrap.appendChild(grid);
 
       // Queue display
@@ -2510,6 +2535,215 @@ a:hover { text-decoration: underline; }
     window.location.hash = path;
   }
 
+  // ─── Supercut Helpers ───
+  function nc(c) {
+    // Normalize clip: handle both snake_case (DB) and camelCase (saved)
+    return {
+      episodeId: c.episodeId || c.episode_id || '',
+      sceneNumber: c.sceneNumber || c.scene_number || 0,
+      shotNumber: c.shotNumber || c.shot_number || 0,
+      startSec: c.startSec || c.start_sec || 0,
+      endSec: c.endSec || c.end_sec || 0,
+      duration: c.duration || c.duration_sec || (c.endSec || c.end_sec || 0) - (c.startSec || c.start_sec || 0) || 3,
+      shotType: c.shotType || c.shot_type || '',
+      subject: c.subject || '',
+      action: c.action || '',
+      expressions: c.expressions || '',
+      ...c
+    };
+  }
+
+  // ─── Supercut Search Dialog ───
+  function showNewSupercutDialog() {
+    const overlay = html('div', { style: 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;align-items:center;justify-content:center;overflow-y:auto' });
+    const dialog = html('div', { style: 'background:var(--card-bg);border-radius:12px;padding:24px;width:700px;max-width:95vw;max-height:90vh;overflow-y:auto;border:1px solid #e94560' });
+
+    dialog.appendChild(html('h3', { style: 'color:#e94560;margin-bottom:16px' }, '\u2702 New Supercut'));
+
+    const queryInput = document.createElement('input');
+    queryInput.placeholder = 'What moments are you looking for? (e.g. "Picard smiling", "Worf being gruff")';
+    queryInput.style.cssText = 'width:100%;padding:12px;background:#0a0a1a;border:1px solid #333;color:#eee;border-radius:6px;font-size:15px;margin-bottom:12px';
+
+    const settingsRow = html('div', { style: 'display:flex;gap:12px;margin-bottom:12px;font-size:12px;color:var(--text-muted)' });
+    const limitInput = document.createElement('input');
+    limitInput.type = 'number'; limitInput.value = '25'; limitInput.min = '5'; limitInput.max = '100';
+    limitInput.style.cssText = 'width:60px;padding:4px;background:#0a0a1a;border:1px solid #333;color:#eee;border-radius:3px;font-size:12px';
+    settingsRow.appendChild(html('span', null, 'Max clips: ')); settingsRow.appendChild(limitInput);
+
+    const searchBtn = html('button', { style: 'padding:10px 20px;background:#e94560;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;margin-bottom:16px', onClick: doSearch }, '\uD83D\uDD0D Search');
+    const cancelBtn = html('button', { style: 'padding:10px 20px;background:#333;color:#aaa;border:none;border-radius:6px;cursor:pointer;font-size:14px;margin-left:8px;margin-bottom:16px', onClick: () => overlay.remove() }, 'Cancel');
+
+    const resultsDiv = html('div', { id: 'sc-results' });
+
+    dialog.appendChild(queryInput);
+    dialog.appendChild(settingsRow);
+    dialog.appendChild(html('div', null, searchBtn, cancelBtn));
+    dialog.appendChild(resultsDiv);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    queryInput.focus();
+
+    queryInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+
+    async function doSearch() {
+      const query = queryInput.value.trim();
+      if (!query) return;
+      resultsDiv.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center">Searching...</div>';
+
+      try {
+        const resp = await fetch('/api/supercut/search', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, limit: parseInt(limitInput.value) || 25 })
+        });
+        const data = await resp.json();
+        if (data.clips) data.clips = data.clips.map(nc);
+        if (!data.clips?.length) { resultsDiv.innerHTML = '<div style="color:#e94560;padding:20px;text-align:center">No clips found</div>'; return; }
+
+        resultsDiv.innerHTML = '';
+        resultsDiv.appendChild(html('div', { style: 'color:var(--text-muted);margin-bottom:8px;font-size:12px' }, data.clips.length + ' clips found | Total: ' + data.clips.reduce((s,c) => s + (c.duration_sec||c.durationSec||3), 0).toFixed(0) + 's'));
+
+        const selectAll = { checked: true };
+        const clipStates = data.clips.map(() => ({ selected: true }));
+
+        const grid = html('div', { style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:400px;overflow-y:auto;margin-bottom:16px' });
+
+        data.clips.forEach((clip, i) => {
+          const dur = (clip.duration || clip.durationSec || clip.endSec - clip.startSec || 3).toFixed(1);
+          const thumbUrl = '/' + clip.episodeId + '/frames/sc' + clip.sceneNumber + '_sh' + clip.shotNumber + '_first.jpg';
+
+          const card = html('div', { style: 'background:#0a0a1a;border-radius:6px;padding:8px;cursor:pointer;border:2px solid #333;transition:border-color 0.2s', onClick: () => {
+            clipStates[i].selected = !clipStates[i].selected;
+            card.style.borderColor = clipStates[i].selected ? '#4caf50' : '#333';
+            card.style.opacity = clipStates[i].selected ? '1' : '0.4';
+          }});
+          card.style.borderColor = '#4caf50';
+
+          const img = document.createElement('img');
+          img.src = thumbUrl; img.style.cssText = 'width:100%;height:100px;object-fit:cover;border-radius:4px';
+          img.onerror = function() { this.style.display = 'none'; };
+          card.appendChild(img);
+          card.appendChild(html('div', { style: 'font-size:10px;color:var(--accent);margin-top:4px' }, clip.episodeId + ' | ' + dur + 's | ' + (clip.shotType || '')));
+          card.appendChild(html('div', { style: 'font-size:11px;color:#eee;margin-top:2px' }, (clip.subject || '').slice(0, 40)));
+          card.appendChild(html('div', { style: 'font-size:10px;color:var(--text-muted);margin-top:2px' }, (clip.action || '').slice(0, 60)));
+          grid.appendChild(card);
+        });
+        resultsDiv.appendChild(grid);
+
+        // Project name + Create button
+        const nameInput = document.createElement('input');
+        nameInput.value = query.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 30);
+        nameInput.placeholder = 'Project name';
+        nameInput.style.cssText = 'width:200px;padding:8px;background:#0a0a1a;border:1px solid #333;color:#eee;border-radius:4px;font-size:13px;margin-right:8px';
+
+        const createBtn = html('button', { style: 'padding:10px 20px;background:#4caf50;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold', onClick: async () => {
+          const selected = data.clips.filter((_, i) => clipStates[i].selected);
+          if (!selected.length) { alert('Select at least one clip'); return; }
+          const name = nameInput.value.trim() || 'supercut-' + Date.now();
+          try {
+            await fetch('/api/supercut/create', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name, query, clips: selected })
+            });
+            overlay.remove();
+            navigate('/supercut/' + encodeURIComponent(name));
+          } catch (e) { alert('Failed: ' + e.message); }
+        }}, '\u2702 Create Supercut (' + data.clips.length + ' clips)');
+
+        resultsDiv.appendChild(html('div', { style: 'display:flex;align-items:center;margin-top:8px' }, nameInput, createBtn));
+
+      } catch (e) { resultsDiv.innerHTML = '<div style="color:#e94560;padding:20px">Search failed: ' + e.message + '</div>'; }
+    }
+  }
+
+  // ─── Supercut Preview Page ───
+  async function renderSupercut(projectName) {
+    app.innerHTML = '';
+    app.appendChild(renderLoading());
+
+    try {
+      const data = await api('/api/supercut/' + encodeURIComponent(projectName));
+      if (data.clips) data.clips = data.clips.map(nc);
+      app.innerHTML = '';
+      const wrap = html('div', { className: 'fade-in' });
+
+      wrap.appendChild(html('button', { className: 'back-btn', onClick: () => navigate('/series/default') }, '\u2190 Back'));
+      wrap.appendChild(html('h1', { className: 'page-title', style: 'color:#e94560' }, '\u2702 ' + projectName));
+      if (data.config?.query) wrap.appendChild(html('div', { style: 'color:var(--text-muted);margin-bottom:16px' }, 'Query: "' + data.config.query + '"'));
+
+      const totalDur = data.clips.reduce((s, c) => s + (c.duration_sec || c.durationSec || c.end_sec - c.start_sec || 3), 0);
+      wrap.appendChild(html('div', { style: 'color:var(--text-muted);margin-bottom:16px;font-size:13px' }, data.clips.length + ' clips | ' + totalDur.toFixed(0) + 's total (' + (totalDur / 60).toFixed(1) + ' min)'));
+
+      // Action buttons
+      const actions = html('div', { style: 'display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap' });
+      actions.appendChild(html('button', { className: 'btn', style: 'background:#4caf50', onClick: async () => {
+        try {
+          const resp = await fetch('/api/supercut/' + encodeURIComponent(projectName) + '/generate', { method: 'POST' });
+          const result = await resp.json();
+          if (result.success) {
+            alert('Composition generated!\\n\\nFiles:\\n- scenes.ts\\n- narrationData.json\\n- project.config.json\\n\\nTo preview:\\n1. Copy files to your Remotion project src/ folder\\n2. Run: npx remotion studio');
+          } else {
+            alert('Failed: ' + (result.error || 'unknown'));
+          }
+        } catch (e) { alert('Failed: ' + e.message); }
+      }}, '\uD83C\uDFAC Generate Composition'));
+      actions.appendChild(html('button', { className: 'btn', style: 'background:#1a1a2e;border:1px solid #333', onClick: () => {
+        const projPath = 'gemini-analysis/_supercuts/' + projectName;
+        window.open('/' + projPath + '/scenes.ts', '_blank');
+      }}, '\uD83D\uDCC4 View scenes.ts'));
+      actions.appendChild(html('button', { className: 'btn', style: 'background:#e94560', onClick: async () => {
+        if (!confirm('Delete this supercut?')) return;
+        await fetch('/api/supercut/' + encodeURIComponent(projectName), { method: 'DELETE' });
+        navigate('/series/default');
+      }}, '\uD83D\uDDD1 Delete'));
+      wrap.appendChild(actions);
+
+      // Clip list
+      const clipList = html('div', { style: 'display:flex;flex-direction:column;gap:6px' });
+
+      data.clips.forEach((clip, i) => {
+        const dur = (clip.duration || clip.durationSec || clip.endSec - clip.startSec || 3).toFixed(1);
+        const thumbUrl = '/' + clip.episodeId + '/frames/sc' + clip.sceneNumber + '_sh' + clip.shotNumber + '_first.jpg';
+
+        const row = html('div', { style: 'display:flex;gap:10px;background:#0a0a1a;border-radius:6px;padding:8px;align-items:center;border-left:3px solid #e94560' });
+
+        row.appendChild(html('div', { style: 'color:#555;font-size:11px;min-width:20px;text-align:center;font-weight:bold' }, String(i + 1)));
+
+        const img = document.createElement('img');
+        img.src = thumbUrl; img.style.cssText = 'width:120px;height:68px;object-fit:cover;border-radius:4px;flex-shrink:0';
+        img.onerror = function() { this.style.background = '#1a1a2e'; };
+        row.appendChild(img);
+
+        const info = html('div', { style: 'flex:1;min-width:0' });
+        info.appendChild(html('div', { style: 'font-size:12px;color:var(--accent)' }, clip.episodeId + ' | ' + (clip.shotType || '') + ' | ' + dur + 's'));
+        info.appendChild(html('div', { style: 'font-size:13px;color:#eee;font-weight:500' }, (clip.subject || 'Unknown').slice(0, 50)));
+        info.appendChild(html('div', { style: 'font-size:11px;color:var(--text-muted)' }, (clip.action || '').slice(0, 100)));
+        if (clip.expressions) {
+          const expr = typeof clip.expressions === 'string' ? clip.expressions : JSON.stringify(clip.expressions);
+          info.appendChild(html('div', { style: 'font-size:10px;color:#ff9800;margin-top:2px' }, expr.slice(0, 80)));
+        }
+        row.appendChild(info);
+
+        // Remove button
+        row.appendChild(html('button', { style: 'background:none;border:none;color:#555;cursor:pointer;font-size:16px;padding:4px 8px', onClick: async () => {
+          data.clips.splice(i, 1);
+          await fetch('/api/supercut/' + encodeURIComponent(projectName) + '/clips', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clips: data.clips })
+          });
+          renderSupercut(projectName);
+        }}, '\u2716'));
+
+        clipList.appendChild(row);
+      });
+
+      wrap.appendChild(clipList);
+      app.appendChild(wrap);
+    } catch (e) {
+      app.innerHTML = '';
+      app.appendChild(renderError(e.message));
+    }
+  }
+
   function route() {
     const hash = window.location.hash.slice(1) || '/';
     const parts = hash.split('/').filter(Boolean);
@@ -2518,6 +2752,8 @@ a:hover { text-decoration: underline; }
       renderSeries(parts[1]);
     } else if (parts[0] === 'episode' && parts[1]) {
       renderEpisode(parts[1]);
+    } else if (parts[0] === 'supercut' && parts[1]) {
+      renderSupercut(decodeURIComponent(parts[1]));
     } else if (parts[0] === 'advanced') {
       renderAdvanced();
     } else if (parts[0] === 'home') {
