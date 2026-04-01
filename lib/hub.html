@@ -2680,7 +2680,8 @@ a:hover { text-decoration: underline; }
           const resp = await fetch('/api/supercut/' + encodeURIComponent(projectName) + '/generate', { method: 'POST' });
           const result = await resp.json();
           if (result.success) {
-            alert('Composition generated!\\n\\nFiles:\\n- scenes.ts\\n- narrationData.json\\n- project.config.json\\n\\nTo preview:\\n1. Copy files to your Remotion project src/ folder\\n2. Run: npx remotion studio');
+            event.target.textContent = '\u2705 Generated!';
+            setTimeout(() => { event.target.textContent = '\uD83C\uDFAC Generate Composition'; }, 2000);
           } else {
             alert('Failed: ' + (result.error || 'unknown'));
           }
