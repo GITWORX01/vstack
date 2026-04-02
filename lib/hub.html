@@ -673,6 +673,43 @@ a:hover { text-decoration: underline; }
 
       wrap.appendChild(grid);
 
+      // ── Supercut Projects Section ──
+      try {
+        const supercuts = await api('/api/supercuts');
+        if (supercuts.length > 0 || true) { // always show section
+          wrap.appendChild(html('h2', { style: 'color:#e94560;margin-top:32px;margin-bottom:12px;font-size:1.1rem' }, '\u2702 Supercut Projects'));
+
+          const scGrid = html('div', { className: 'card-grid' });
+
+          // Existing projects
+          for (const sc of supercuts) {
+            const scCard = html('div', { className: 'card', style: 'border-left:3px solid #e94560;cursor:pointer', onClick: () => navigate('/supercut/' + encodeURIComponent(sc.name)) });
+            scCard.appendChild(html('div', { className: 'card-body' },
+              html('div', { className: 'card-title', style: 'color:#e94560' }, '\u2702 ' + sc.name),
+              html('div', { className: 'card-meta' },
+                html('span', null, sc.clipCount + ' clips'),
+                html('span', null, sc.query ? '"' + sc.query + '"' : '')
+              ),
+              sc.createdAt ? html('div', { className: 'card-meta', style: 'margin-top:4px' },
+                html('span', null, fmtDate(sc.createdAt))
+              ) : null
+            ));
+            scGrid.appendChild(scCard);
+          }
+
+          // New Supercut button
+          const addScCard = html('div', { className: 'card card-add', style: 'border-color:#e94560', onClick: () => showNewSupercutDialog() },
+            html('div', { className: 'card-add-inner' },
+              html('div', { className: 'plus', style: 'color:#e94560' }, '\u2702'),
+              html('div', { className: 'label' }, 'New Supercut')
+            )
+          );
+          scGrid.appendChild(addScCard);
+
+          wrap.appendChild(scGrid);
+        }
+      } catch {}
+
       // Advanced / Raw Data link
       wrap.appendChild(html('div', { style: 'text-align:center;margin-top:24px' },
         html('a', {
@@ -837,31 +874,6 @@ a:hover { text-decoration: underline; }
         )
       );
       grid.appendChild(addCard);
-
-      // New Supercut card
-      const supercutCard = html('div', { className: 'card card-add', style: 'border-color:#e94560', onClick: () => showNewSupercutDialog() },
-        html('div', { className: 'card-add-inner' },
-          html('div', { className: 'plus', style: 'color:#e94560' }, '\u2702'),
-          html('div', { className: 'label' }, 'New Supercut')
-        )
-      );
-      grid.appendChild(supercutCard);
-
-      // Show existing supercut projects
-      try {
-        const supercuts = await api('/api/supercuts');
-        for (const sc of supercuts) {
-          const scCard = html('div', { className: 'card', style: 'border-left:3px solid #e94560;cursor:pointer', onClick: () => navigate('/supercut/' + encodeURIComponent(sc.name)) });
-          scCard.appendChild(html('div', { className: 'card-body' },
-            html('div', { className: 'card-title', style: 'color:#e94560' }, '\u2702 ' + sc.name),
-            html('div', { className: 'card-meta' },
-              html('span', null, sc.clipCount + ' clips'),
-              html('span', null, sc.query ? '"' + sc.query + '"' : '')
-            )
-          ));
-          grid.appendChild(scCard);
-        }
-      } catch {}
 
       wrap.appendChild(grid);
 
