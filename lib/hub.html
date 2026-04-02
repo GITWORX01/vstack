@@ -2817,6 +2817,26 @@ a:hover { text-decoration: underline; }
         const projPath = 'gemini-analysis/_supercuts/' + projectName;
         window.open('/' + projPath + '/scenes.ts', '_blank');
       }}, '\uD83D\uDCC4 View scenes.ts'));
+      actions.appendChild(html('button', { className: 'btn', style: 'background:#2196f3', onClick: async () => {
+        const btn = event.target;
+        btn.textContent = '\u23F3 Generating XML...';
+        btn.disabled = true;
+        try {
+          const resp = await fetch('/api/supercut/' + encodeURIComponent(projectName) + '/export-xml', { method: 'POST' });
+          const result = await resp.json();
+          if (result.success) {
+            btn.textContent = '\u2705 XML Ready!';
+            setTimeout(() => {
+              window.open('/api/supercut/' + encodeURIComponent(projectName) + '/download-xml', '_blank');
+              btn.textContent = '\uD83C\uDFAC Export DaVinci XML';
+              btn.disabled = false;
+            }, 500);
+          } else {
+            btn.textContent = '\u274C ' + (result.error || 'Failed');
+            setTimeout(() => { btn.textContent = '\uD83C\uDFAC Export DaVinci XML'; btn.disabled = false; }, 3000);
+          }
+        } catch (e) { alert('Error: ' + e.message); btn.textContent = '\uD83C\uDFAC Export DaVinci XML'; btn.disabled = false; }
+      }}, '\uD83C\uDFAC Export DaVinci XML'));
       actions.appendChild(html('button', { className: 'btn', style: 'background:#e94560', onClick: async () => {
         if (!confirm('Delete this supercut?')) return;
         await fetch('/api/supercut/' + encodeURIComponent(projectName), { method: 'DELETE' });
