@@ -1095,6 +1095,44 @@ a:hover { text-decoration: underline; }
         '\u{1F4E5} Restore from Backup'));
       btnWrap.appendChild(importInput);
 
+      // Clone button
+      btnWrap.appendChild(html('button', { className: 'btn btn-secondary', onClick: async () => {
+        const newId = prompt('Clone "' + episodeId + '" as:', episodeId + '-copy');
+        if (!newId || newId === episodeId) return;
+        try {
+          const resp = await fetch('/api/clone-episode', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sourceId: episodeId, newId })
+          });
+          const result = await resp.json();
+          if (result.success) {
+            alert('Cloned! New episode: ' + newId);
+            navigate('/episode/' + encodeURIComponent(newId));
+          } else {
+            alert('Clone failed: ' + (result.error || 'unknown'));
+          }
+        } catch (e) { alert('Error: ' + e.message); }
+      }}, '\u{1F4CB} Clone Episode'));
+
+      // Primary/Copy toggle
+      const isCopy = ep.is_copy || false;
+      const toggleBtn = html('button', {
+        className: 'btn btn-secondary',
+        style: isCopy ? 'background:#e94560;color:#fff' : '',
+        onClick: async () => {
+          try {
+            const resp = await fetch('/api/toggle-copy/' + encodeURIComponent(episodeId), { method: 'POST' });
+            const result = await resp.json();
+            if (result.success) {
+              toggleBtn.textContent = result.isCopy ? '\u{1F4CB} Copy (excluded from search)' : '\u2B50 Primary';
+              toggleBtn.style.background = result.isCopy ? '#e94560' : '';
+              toggleBtn.style.color = result.isCopy ? '#fff' : '';
+            }
+          } catch (e) { alert('Error: ' + e.message); }
+        }
+      }, isCopy ? '\u{1F4CB} Copy (excluded from search)' : '\u2B50 Primary');
+      btnWrap.appendChild(toggleBtn);
+
       try {
         const backupStatus = await fetch('/api/backup-status/' + encodeURIComponent(episodeId)).then(r => r.json());
         if (backupStatus.exists) {
