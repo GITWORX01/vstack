@@ -2837,6 +2837,9 @@ a:hover { text-decoration: underline; }
           }
         } catch (e) { alert('Error: ' + e.message); btn.textContent = '\uD83C\uDFAC Export DaVinci XML'; btn.disabled = false; }
       }}, '\uD83C\uDFAC Export DaVinci XML'));
+      actions.appendChild(html('button', { className: 'btn', style: 'background:#1a1a2e;border:1px solid #555', onClick: () => {
+        window.open('/api/supercut/' + encodeURIComponent(projectName) + '/download-srt', '_blank');
+      }}, '\uD83D\uDCDD Download SRT'));
       actions.appendChild(html('button', { className: 'btn', style: 'background:#e94560', onClick: async () => {
         if (!confirm('Delete this supercut?')) return;
         await fetch('/api/supercut/' + encodeURIComponent(projectName), { method: 'DELETE' });
